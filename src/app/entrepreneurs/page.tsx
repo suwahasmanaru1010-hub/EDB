@@ -1,12 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Menu, User, Bell, Users, Home, Plus, X, ChevronRight, ChevronDown, Loader2, Settings, Check, Tag, List } from "lucide-react";
+import { Users, Home, Settings, ChevronDown, ChevronRight, Search, Loader2, ArrowLeft, ListFilter, X, Plus, Check } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../../lib/supabase";
 import Sidebar from "@/components/Sidebar";
 import DesktopHeader from "@/components/DesktopHeader";
-import { getAdminSession } from "@/lib/auth";
 
 type Category = {
   id: string;
@@ -67,7 +65,6 @@ const CustomDatePicker = ({
 
   return (
     <div className="space-y-3 bg-gray-50/80 p-3.5 rounded-2xl border border-gray-200">
-      {/* 1. Year Selector */}
       <div>
         <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
           1. Select Year {selectedYear && <span className="text-[#2B2B2B] font-bold">({selectedYear})</span>}
@@ -90,7 +87,6 @@ const CustomDatePicker = ({
         </div>
       </div>
 
-      {/* 2. Month Selector */}
       {selectedYear && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300 pt-1 border-t border-gray-200/60">
           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
@@ -115,7 +111,6 @@ const CustomDatePicker = ({
         </div>
       )}
 
-      {/* 3. Day Selector */}
       {selectedYear && selectedMonth && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300 pt-1 border-t border-gray-200/60">
           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
@@ -143,25 +138,30 @@ const CustomDatePicker = ({
   );
 };
 
-export default function HomeDashboard() {
+import { useRouter } from "next/navigation";
+import { getAdminSession } from "@/lib/auth";
+
+export default function EntrepreneursPage() {
   const router = useRouter();
+  const [entrepreneurs, setEntrepreneurs] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Add Entrepreneur Drawer / Modal State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [step, setStep] = useState(1);
-  
-  // Data State
   const [dbCategories, setDbCategories] = useState<Category[]>([]);
   const [dbFormFields, setDbFormFields] = useState<FormField[]>([]);
-  
-  // Form State
   const [selectedMainCat, setSelectedMainCat] = useState<Category | null>(null);
   const [selectedSubCat, setSelectedSubCat] = useState<Category | null>(null);
   const [dynamicFormData, setDynamicFormData] = useState<Record<string, string>>({});
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [counts, setCounts] = useState({ total: 0, active: 0, pending: 0, approved: 0 });
   const [showSuccess, setShowSuccess] = useState(false);
-  const [recentEntrepreneurs, setRecentEntrepreneurs] = useState<any[]>([]);
-  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   useEffect(() => {
     const session = getAdminSession();
@@ -169,38 +169,28 @@ export default function HomeDashboard() {
       router.push("/login");
       return;
     }
-    fetchCounts();
+    fetchData();
     fetchConfigData();
-    fetchRecent();
   }, []);
 
-  const fetchCounts = async () => {
+  const fetchData = async () => {
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('entrepreneurs').select('status');
-      if (!error && data) {
-        setCounts({
-          total: data.length,
-          active: data.filter(e => e.status === 'Active').length,
-          pending: data.filter(e => e.status === 'Pending').length,
-          approved: data.filter(e => e.status === 'Approved').length
-        });
+      const [entRes, catRes] = await Promise.all([
+        supabase.from('entrepreneurs').select('*').neq('status', 'Pending').order('created_at', { ascending: false }),
+        supabase.from('categories').select('*').order('name', { ascending: true })
+      ]);
+        
+      if (!entRes.error && entRes.data) {
+        setEntrepreneurs(entRes.data);
+      }
+      if (!catRes.error && catRes.data) {
+        setCategories(catRes.data);
       }
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const fetchRecent = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('entrepreneurs')
-        .select('*')
-        .neq('status', 'Pending')
-        .order('created_at', { ascending: false })
-        .limit(6);
-      if (!error && data) setRecentEntrepreneurs(data);
-    } catch (err) {
-      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -256,8 +246,7 @@ export default function HomeDashboard() {
       if (error) throw error;
       
       setShowSuccess(true);
-      fetchCounts();
-      fetchRecent();
+      fetchData();
       setTimeout(() => {
         setShowSuccess(false);
         handleClose();
@@ -268,6 +257,21 @@ export default function HomeDashboard() {
       setIsSubmitting(false);
     }
   };
+
+  const filteredEntrepreneurs = entrepreneurs.filter(e => {
+    const matchesSearch = e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          e.main_category?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesMainCategory = selectedCategory ? e.main_category === selectedCategory : true;
+    const matchesSubCategory = selectedSubCategory ? e.sub_category === selectedSubCategory : true;
+    
+    return matchesSearch && matchesMainCategory && matchesSubCategory;
+  });
+
+  const mainCats = categories.filter(c => c.type === 'main');
+  const activeSubCats = selectedCategory 
+    ? categories.filter(c => c.type === 'sub' && c.parent_id === categories.find(m => m.name === selectedCategory)?.id)
+    : [];
 
   const mainCategoriesList = dbCategories.filter(c => c.type === 'main');
   const subCategoriesList = selectedMainCat 
@@ -283,185 +287,216 @@ export default function HomeDashboard() {
   });
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FB] font-poppins relative">
+    <div className="flex min-h-screen bg-[#FDFDFD] text-[#2B2B2B] font-poppins relative">
       {/* Desktop Left Sidebar */}
-      <Sidebar onOpenNewModal={() => setIsDrawerOpen(true)} />
+      <Sidebar />
 
-      {/* Main Container */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        
-        {/* Desktop Header with "+ New Entrepreneur" button */}
+        {/* Desktop Header */}
         <DesktopHeader 
-          title="Dashboard" 
-          subtitle="Sri Lankan Entrepreneurs Database" 
+          title="Entrepreneurs Directory" 
+          subtitle="All registered Sri Lankan entrepreneur entries" 
+          showNewButton={true}
+          showIcons={false}
           onOpenNewModal={() => setIsDrawerOpen(true)}
+          showSearch={true}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search by name or category..."
         />
 
         {/* Mobile Header */}
-        <header className="flex md:hidden items-center justify-between p-6 bg-white border-b border-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">EDB</h1>
-              <span className="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wider">
-                ADMIN
-              </span>
-            </div>
-          </div>
-          
+        <div className="md:hidden flex items-center justify-between p-6 bg-white border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <button className="text-gray-400 hover:text-gray-900 transition-colors">
-              <User className="w-5 h-5" />
-            </button>
-            <button className="text-gray-400 hover:text-gray-900 transition-colors">
-              <Bell className="w-5 h-5" />
-            </button>
-          </div>
-        </header>
-
-        {/* Dashboard Body Content */}
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto pb-32 md:pb-12">
-          
-          {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Total Entrepreneurs Hero Card */}
-            <div className="bg-[#2B2B2B] rounded-[2rem] p-6 text-white relative overflow-hidden shadow-lg transform transition-transform hover:scale-[1.01] duration-300">
-              <div className="relative z-10">
-                <p className="text-xs text-gray-300 mb-1 font-light uppercase tracking-wider">Total Entrepreneurs</p>
-                <h2 className="text-4xl font-bold tracking-tight">{counts.total}</h2>
-              </div>
-              
-              <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center">
-                <svg width="100" height="40" viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute right-10 opacity-30">
-                  <path d="M0 20C20 20 20 10 40 10C60 10 60 30 80 30C100 30 100 20 120 20" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                <div className="w-12 h-12 bg-white/10 rounded-2xl backdrop-blur-md flex items-center justify-center relative z-10 border border-white/10">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </div>
-
-            {/* Categories Stat Card */}
-            <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Categories</p>
-                <h3 className="text-3xl font-bold text-gray-900">{mainCategoriesList.length}</h3>
-                <p className="text-xs text-gray-500 mt-1 font-medium">Main categories setup</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100">
-                <Tag className="w-6 h-6" />
-              </div>
-            </div>
-
-            {/* Custom Fields Stat Card */}
-            <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Form Fields</p>
-                <h3 className="text-3xl font-bold text-gray-900">{dbFormFields.length}</h3>
-                <p className="text-xs text-gray-500 mt-1 font-medium">Custom inputs active</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 border border-purple-100">
-                <List className="w-6 h-6" />
-              </div>
+            <Link href="/" className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100 hover:bg-gray-100 transition-colors">
+              <ArrowLeft className="w-5 h-5 text-gray-900" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-gray-900">Entrepreneurs</h1>
+              <p className="text-xs text-gray-500 font-medium">All registered entries</p>
             </div>
           </div>
 
-          {/* Recent Added Section */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4 px-1">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Recent Added</h3>
-                <p className="text-xs text-gray-500 hidden md:block">Latest registered entrepreneur entries</p>
-              </div>
-              <Link href="/entrepreneurs" className="text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors">
-                View All →
-              </Link>
-            </div>
-            
-            {recentEntrepreneurs.length === 0 ? (
-              <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
-                <p className="text-sm text-gray-400">No recent entrepreneurs found.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentEntrepreneurs.map((e) => {
-                  const fields = e.dynamic_data ? Object.entries(e.dynamic_data as Record<string,string>) : [];
-                  const initials = (e.name || '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
-                  const isExpanded = expandedCardId === e.id;
-
-                  return (
-                    <div 
-                      key={e.id} 
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col"
-                      onClick={() => setExpandedCardId(isExpanded ? null : e.id)}
-                    >
-                      <div className="p-4 flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#2B2B2B] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
-                          {initials}
-                        </div>
-
-                        <div className="flex-1 min-w-0 flex items-start justify-between">
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm truncate">{e.name || 'Unknown'}</p>
-                            {(e.main_category || e.sub_category) && (
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {e.main_category}{e.sub_category ? ` · ${e.sub_category}` : ''}
-                              </p>
-                            )}
-                          </div>
-                          <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 mt-1 shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
-                        </div>
-                      </div>
-
-                      <div 
-                        className={`grid transition-all duration-300 ease-in-out bg-gray-50/60 ${
-                          isExpanded ? 'grid-rows-[1fr] opacity-100 border-t border-gray-100' : 'grid-rows-[0fr] opacity-0'
-                        }`}
-                      >
-                        <div className="overflow-hidden">
-                          {fields.length > 0 ? (
-                            <div className="p-4 grid grid-cols-2 gap-3">
-                              {fields.map(([key, val]) => (
-                                <div key={key} className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{key}</span>
-                                  <span className="text-xs font-semibold text-gray-900 truncate">{val}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="p-4 text-xs text-gray-500 text-center">No extra details available.</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </main>
-
-        {/* Mobile Floating Action Button */}
-        <div className="md:hidden fixed bottom-24 right-6 z-40">
           <button 
-            onClick={() => setIsDrawerOpen(true)}
-            className="w-14 h-14 bg-[#2B2B2B] text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
+            onClick={() => setShowFilters(true)} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center border transition-colors ${showFilters || selectedCategory ? 'bg-black text-white border-black' : 'bg-gray-50 text-gray-900 border-gray-100 hover:bg-gray-100'}`}
           >
-            <Plus className="w-6 h-6" />
+            <ListFilter className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Main Body Content */}
+        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto pb-32 md:pb-12">
+          
+          {/* Controls Bar: Mobile Search */}
+          <div className="md:hidden flex flex-col gap-4 mb-6">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="w-5 h-5 text-gray-400" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search by name or category..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-gray-200 pl-11 pr-4 py-3.5 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent shadow-sm transition-all placeholder-gray-400"
+              />
+            </div>
+          </div>
+
+          {/* Desktop Filter Pills Bar */}
+          <div className="hidden md:flex flex-col gap-2 mb-8">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2 shrink-0">Category:</span>
+              <button
+                onClick={() => { setSelectedCategory(""); setSelectedSubCategory(""); }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                  selectedCategory === "" 
+                    ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm' 
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                All Categories
+              </button>
+              {mainCats.map(mainCat => (
+                <button
+                  key={mainCat.id}
+                  onClick={() => {
+                    if (selectedCategory === mainCat.name) {
+                      setSelectedCategory("");
+                      setSelectedSubCategory("");
+                    } else {
+                      setSelectedCategory(mainCat.name);
+                      setSelectedSubCategory("");
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                    selectedCategory === mainCat.name
+                      ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {mainCat.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Sub Categories Pills (Desktop) */}
+            {selectedCategory && activeSubCats.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 no-scrollbar pl-20 animate-in fade-in duration-200">
+                <span className="text-xs font-semibold text-gray-400 mr-1 shrink-0">Sub:</span>
+                <button
+                  onClick={() => setSelectedSubCategory("")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0 ${
+                    selectedSubCategory === "" 
+                      ? 'bg-gray-200 text-gray-900 border-gray-300 font-bold' 
+                      : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  All {selectedCategory}
+                </button>
+                {activeSubCats.map(subCat => (
+                  <button
+                    key={subCat.id}
+                    onClick={() => setSelectedSubCategory(selectedSubCategory === subCat.name ? "" : subCat.name)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0 ${
+                      selectedSubCategory === subCat.name
+                        ? 'bg-gray-200 text-gray-900 border-gray-300 font-bold'
+                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {subCat.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Grid of Entrepreneurs */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+              <p className="text-sm font-bold text-gray-400">Loading entries...</p>
+            </div>
+          ) : filteredEntrepreneurs.length === 0 ? (
+            <div className="bg-white rounded-3xl p-16 text-center border border-gray-100 flex flex-col items-center justify-center gap-2 shadow-sm">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-2">
+                <Users className="w-8 h-8 text-gray-300" />
+              </div>
+              <p className="text-base font-bold text-gray-900">No entrepreneurs found</p>
+              <p className="text-sm text-gray-500 max-w-sm">
+                {searchQuery || selectedCategory ? "Try adjusting your search query or category filters." : "You haven't added any entrepreneurs yet."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredEntrepreneurs.map((e) => {
+                const fields = e.dynamic_data ? Object.entries(e.dynamic_data as Record<string,string>) : [];
+                const initials = (e.name || '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+                const isExpanded = expandedCardId === e.id;
+
+                return (
+                  <div 
+                    key={e.id} 
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between"
+                    onClick={() => setExpandedCardId(isExpanded ? null : e.id)}
+                  >
+                    <div className="p-5 flex items-start gap-3.5">
+                      <div className="w-11 h-11 rounded-full bg-[#2B2B2B] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
+                        {initials}
+                      </div>
+
+                      <div className="flex-1 min-w-0 flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 text-base truncate">{e.name || 'Unknown'}</p>
+                          {(e.main_category || e.sub_category) && (
+                            <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                              {e.main_category}{e.sub_category ? ` · ${e.sub_category}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 mt-1 shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
+
+                    <div 
+                      className={`grid transition-all duration-300 ease-in-out bg-gray-50/70 ${
+                        isExpanded ? 'grid-rows-[1fr] opacity-100 border-t border-gray-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        {fields.length > 0 ? (
+                          <div className="p-4 grid grid-cols-2 gap-3">
+                            {fields.map(([key, val]) => (
+                              <div key={key} className="flex flex-col">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{key}</span>
+                                <span className="text-xs font-semibold text-gray-900 truncate">{val}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 text-xs text-gray-500 text-center">No extra details available.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </main>
+
         {/* Mobile Bottom Navigation */}
         <nav className="md:hidden fixed bottom-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 px-8 py-4 flex items-center justify-around z-40 shadow-lg">
-          <Link href="/" className="flex flex-col items-center justify-center text-gray-900">
+          <Link href="/" className="flex flex-col items-center justify-center text-gray-400 hover:text-gray-900">
             <Home className="w-6 h-6 mb-1" />
-            <span className="text-[10px] font-bold">Home</span>
+            <span className="text-[10px] font-medium">Home</span>
           </Link>
-
-          <Link href="/entrepreneurs" className="flex flex-col items-center justify-center text-gray-400 hover:text-gray-900">
+          <Link href="/entrepreneurs" className="flex flex-col items-center justify-center text-gray-900">
             <Users className="w-6 h-6 mb-1" />
-            <span className="text-[10px] font-medium">Entrepreneurs</span>
+            <span className="text-[10px] font-bold">Entrepreneurs</span>
           </Link>
-
           <Link href="/settings" className="flex flex-col items-center justify-center text-gray-400 hover:text-gray-900">
             <Settings className="w-6 h-6 mb-1" />
             <span className="text-[10px] font-medium">Settings</span>
@@ -469,25 +504,21 @@ export default function HomeDashboard() {
         </nav>
       </div>
 
-      {/* Add Entrepreneur Drawer (Mobile) / Modal (Desktop) */}
+      {/* Add Entrepreneur Modal */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-          {/* Overlay */}
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
             onClick={handleClose}
           />
 
-          {/* Drawer / Modal Box */}
           <div 
             className="relative w-full max-w-md md:max-w-xl bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-10 transform transition-all duration-300 ease-out overflow-hidden flex flex-col"
             style={{ height: step === 3 ? '85vh' : '65vh' }}
           >
             <div className="p-6 h-full flex flex-col relative">
-              {/* Drawer Handle (Mobile) */}
               <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4 md:hidden" />
               
-              {/* Success Overlay */}
               {showSuccess && (
                 <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-20 flex flex-col items-center justify-center rounded-3xl animate-in fade-in duration-300">
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -498,7 +529,6 @@ export default function HomeDashboard() {
                 </div>
               )}
 
-              {/* Header */}
               <div className="flex items-center justify-between mb-6 pb-2 border-b border-gray-100">
                 <h3 className="text-xl font-bold text-gray-900">
                   {step === 1 ? "Select Main Category" : step === 2 ? "Select Sub Category" : "Add Entrepreneur Details"}
@@ -508,7 +538,6 @@ export default function HomeDashboard() {
                 </button>
               </div>
 
-              {/* Content */}
               <div className="flex-1 overflow-y-auto no-scrollbar pb-6 px-1">
                 {step === 1 ? (
                   <div className="space-y-3">
@@ -641,6 +670,77 @@ export default function HomeDashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Sidebar Drawer (Mobile Filter Drawer) */}
+      {showFilters && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowFilters(false)}
+          />
+
+          <div className="relative w-full max-w-[340px] bg-white h-full shadow-2xl z-10 flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Filter by Category</h2>
+              <button onClick={() => setShowFilters(false)} className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors">
+                <X className="w-4 h-4 text-gray-900 font-bold" />
+              </button>
+            </div>
+            
+            <div className="p-4 flex-1 overflow-y-auto space-y-2">
+              <button 
+                onClick={() => { setSelectedCategory(""); setSelectedSubCategory(""); setShowFilters(false); }} 
+                className={`w-full text-left px-5 py-4 rounded-2xl text-sm font-bold transition-all ${selectedCategory === "" ? 'bg-[#2B2B2B] text-white shadow-md' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-100'}`}
+              >
+                All Categories
+              </button>
+              
+              {mainCats.map(mainCat => {
+                const isSelected = selectedCategory === mainCat.name;
+                const subCategories = categories.filter(c => c.parent_id === mainCat.id);
+                
+                return (
+                  <div key={mainCat.id} className="space-y-1.5">
+                    <button 
+                      onClick={() => { 
+                        setSelectedCategory(mainCat.name); 
+                        setSelectedSubCategory(""); 
+                        if (subCategories.length === 0) setShowFilters(false);
+                      }} 
+                      className={`w-full text-left px-5 py-4 rounded-2xl text-sm font-bold transition-all flex items-center justify-between ${isSelected ? 'bg-[#2B2B2B] text-white shadow-md' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-100'}`}
+                    >
+                      <span>{mainCat.name}</span>
+                      {subCategories.length > 0 && (
+                        <ChevronDown className={`w-4 h-4 transition-transform ${isSelected ? 'rotate-180' : ''}`} />
+                      )}
+                    </button>
+                    
+                    {isSelected && subCategories.length > 0 && (
+                      <div className="pl-4 pr-1 py-1 space-y-1.5 border-l-2 border-gray-100 ml-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <button 
+                          onClick={() => { setSelectedSubCategory(""); setShowFilters(false); }}
+                          className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${selectedSubCategory === "" ? 'bg-gray-200 text-black' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                          All {mainCat.name}
+                        </button>
+                        {subCategories.map(subCat => (
+                          <button 
+                            key={subCat.id}
+                            onClick={() => { setSelectedSubCategory(subCat.name); setShowFilters(false); }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${selectedSubCategory === subCat.name ? 'bg-gray-200 text-black' : 'text-gray-500 hover:bg-gray-50'}`}
+                          >
+                            {subCat.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

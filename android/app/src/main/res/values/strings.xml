@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EDB</string>
+    <string name="title_activity_main">EDB</string>
+    <string name="package_name">com.cmb.edb</string>
+    <string name="custom_url_scheme">com.cmb.edb</string>
+</resources>
