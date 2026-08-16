@@ -9,11 +9,19 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "EDB",
-  description: "Sri Lankan Entrepreneurs Database",
+  title: "EDB - Entrepreneurs Database",
+  description: "Sri Lankan Entrepreneurs Database System",
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
+    shortcut: "/logo.png",
+  },
+  manifest: "/manifest.webmanifest",
+  themeColor: "#0d0d0d",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "EDB",
   },
 };
 

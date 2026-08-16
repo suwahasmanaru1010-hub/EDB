@@ -430,8 +430,25 @@ export default function CSFormsPage() {
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                         />
+                        {searchQuery && (
+                          <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-700 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       
+                      {isFilterActive && (
+                        <button
+                          onClick={handleResetFilters}
+                          className="px-3 py-2.5 rounded-xl border border-red-100 bg-red-50 text-red-600 text-xs font-bold transition-all flex items-center gap-1.5 hover:bg-red-100 shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" /> Clear
+                        </button>
+                      )}
+
                       <button
                         onClick={() => setIsFilterDrawerOpen(true)}
                         className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
