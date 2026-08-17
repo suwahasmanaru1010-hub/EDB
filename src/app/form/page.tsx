@@ -143,7 +143,7 @@ function PublicFormContent() {
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Application Submitted!</h2>
           <p className="text-gray-500 font-medium mb-8">
-            Thank you for registering. Your details have been securely submitted to the EDB and are currently pending review by an administrator.
+            Thank you for registering. Your details have been securely submitted to the ISDOM and are currently pending review by an administrator.
           </p>
           
           <div className="bg-gray-50 rounded-2xl p-4 text-left mb-8 border border-gray-100">
@@ -155,7 +155,7 @@ function PublicFormContent() {
           </div>
 
           <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">
-            Export Development Board Sri Lanka
+            Industry Sector - DS Office Maho
           </p>
         </div>
       </div>
@@ -171,7 +171,7 @@ function PublicFormContent() {
         {/* Header / Branding */}
         <div className="mb-10 text-center">
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tighter mb-4">
-            EDB Registration
+            ISDOM Registration
           </h1>
           <div className="inline-flex flex-col items-center justify-center">
             <span className="bg-[#2B2B2B] text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm uppercase tracking-wider mb-2">
@@ -301,7 +301,7 @@ function PublicFormContent() {
                   )}
                 </button>
                 <p className="text-center text-[11px] text-gray-400 font-semibold mt-4 uppercase tracking-wider">
-                  Secure Submission to EDB Database
+                  Secure Submission to ISDOM Database
                 </p>
               </div>
 

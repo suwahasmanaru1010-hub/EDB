@@ -301,7 +301,7 @@ export default function HomeDashboard() {
         <header className="flex md:hidden items-center justify-between p-6 bg-white border-b border-gray-100">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">EDB</h1>
+              <h1 className="text-xl font-bold tracking-tight text-gray-900">ISDOM</h1>
               <span className="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wider">
                 ADMIN
               </span>

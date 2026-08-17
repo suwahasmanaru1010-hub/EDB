@@ -9,7 +9,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "EDB - Entrepreneurs Database",
+  title: "ISDOM - Entrepreneurs Database",
   description: "Sri Lankan Entrepreneurs Database System",
   icons: {
     icon: "/logo.png",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "EDB",
+    title: "ISDOM",
   },
 };
 

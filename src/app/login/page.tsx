@@ -110,23 +110,23 @@ export default function LoginPage() {
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
           <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
-            Sri Lanka EDB Admin Portal
+            ISDOM Admin Portal
           </span>
         </div>
 
-        {/* Center Huge Bold Text: EDB */}
+        {/* Center Huge Bold Text: ISDOM */}
         <div className="relative z-10 my-auto py-12">
           <h1 className="text-7xl sm:text-8xl lg:text-[140px] font-extrabold tracking-tighter text-white leading-none mb-4">
-            EDB
+            ISDOM
           </h1>
           <p className="text-lg lg:text-2xl font-light text-gray-300 max-w-xl leading-relaxed">
-            Export Development Board <span className="font-semibold text-white">Database Management System</span>
+            Industry Sector - DS Office Maho
           </p>
         </div>
 
         {/* Footer Text */}
         <div className="relative z-10 text-xs text-gray-500 font-medium">
-          © 2026 EDB Sri Lanka. Authorized Administrator Access Only.
+          © 2026 ISDOM - DS Office Maho. Authorized Administrator Access Only.
         </div>
       </div>
 
@@ -135,8 +135,8 @@ export default function LoginPage() {
         <div className="max-w-sm mx-auto w-full">
           {/* Mobile Header */}
           <div className="lg:hidden mb-6 text-center">
-            <h2 className="text-4xl font-extrabold text-gray-900 tracking-tight">EDB</h2>
-            <p className="text-xs text-gray-500 font-medium">Admin Authentication</p>
+            <h2 className="text-4xl font-extrabold text-gray-900 tracking-tight">ISDOM</h2>
+            <p className="text-xs text-gray-500 font-medium">Industry Sector - DS Office Maho</p>
           </div>
 
           <div className="mb-8">

@@ -44,12 +44,12 @@ export default function Sidebar({ onOpenNewModal }: SidebarProps) {
         {/* Brand Logo */}
         <div className="px-2">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">EDB</h1>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">ISDOM</h1>
             <span className="bg-gray-200 text-gray-700 text-[9px] font-bold px-1.5 py-0.5 rounded-sm tracking-wider">
               ADMIN
             </span>
           </div>
-          <p className="text-[11px] text-gray-400 font-medium">Database System</p>
+          <p className="text-[11px] text-gray-400 font-medium">DS Office Maho</p>
         </div>
 
         {/* Navigation Links */}
