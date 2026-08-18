@@ -62,8 +62,9 @@ export default function SettingsPage() {
   const [catNameInput, setCatNameInput] = useState("");
   const [isSavingCat, setIsSavingCat] = useState(false);
 
-  // Add Form Field Drawer State
+  // Add / Edit Form Field Drawer State
   const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [isCategoryPanelExpanded, setIsCategoryPanelExpanded] = useState(false);
   
   const [newField, setNewField] = useState<{
@@ -260,6 +261,22 @@ export default function SettingsPage() {
     );
   };
 
+  const handleOpenEditField = (field: FormField) => {
+    const catList = field.category_name 
+      ? field.category_name.split(',').map(s => s.trim()).filter(Boolean)
+      : ['all'];
+    
+    setEditingFieldId(field.id);
+    setNewField({
+      label: field.label,
+      type: field.type,
+      required: field.required,
+      selectedCategoryNames: catList.length > 0 ? catList : ['all']
+    });
+    setIsCategoryPanelExpanded(false);
+    setFieldDrawerOpen(true);
+  };
+
   const handleSaveField = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newField.label.trim()) return;
@@ -272,24 +289,45 @@ export default function SettingsPage() {
       label: newField.label.trim(), 
       type: newField.type, 
       required: newField.required,
-      order_index: formFields.length,
       category_name: categoryString
     };
 
     try {
-      let { data, error } = await supabase.from('form_fields').insert([payload]).select();
+      if (editingFieldId) {
+        let { data, error } = await supabase
+          .from('form_fields')
+          .update(payload)
+          .eq('id', editingFieldId)
+          .select();
 
-      if (error && error.message.includes('category_name')) {
-        delete payload.category_name;
-        const res = await supabase.from('form_fields').insert([payload]).select();
-        data = res.data;
-        error = res.error;
+        if (error && error.message.includes('category_name')) {
+          delete payload.category_name;
+          const res = await supabase.from('form_fields').update(payload).eq('id', editingFieldId).select();
+          data = res.data;
+          error = res.error;
+        }
+
+        if (error) throw error;
+
+        setFormFields(formFields.map(f => f.id === editingFieldId ? (data && data[0] ? data[0] : { ...f, ...payload }) : f));
+      } else {
+        payload.order_index = formFields.length;
+        let { data, error } = await supabase.from('form_fields').insert([payload]).select();
+
+        if (error && error.message.includes('category_name')) {
+          delete payload.category_name;
+          const res = await supabase.from('form_fields').insert([payload]).select();
+          data = res.data;
+          error = res.error;
+        }
+
+        if (error) throw error;
+
+        setFormFields([...formFields, ...(data || [])]);
       }
 
-      if (error) throw error;
-
-      setFormFields([...formFields, ...(data || [])]);
       setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
+      setEditingFieldId(null);
       setFieldDrawerOpen(false);
       setIsCategoryPanelExpanded(false);
     } catch (err: any) {
@@ -548,11 +586,12 @@ export default function SettingsPage() {
                     <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Dynamic Form Fields</h2>
                     <button 
                       onClick={() => {
+                        setEditingFieldId(null);
                         setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
                         setIsCategoryPanelExpanded(false);
                         setFieldDrawerOpen(true);
                       }} 
-                      className="px-3.5 py-2 bg-[#2B2B2B] text-white rounded-xl hover:bg-black text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                      className="px-3.5 py-2 bg-[#2B2B2B] text-white rounded-xl hover:bg-black text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Plus className="w-4 h-4" /> Add Field
                     </button>
@@ -563,7 +602,7 @@ export default function SettingsPage() {
                       const catList = field.category_name ? field.category_name.split(',').map(s => s.trim()) : [];
                       
                       return (
-                        <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3">
+                        <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-shadow">
                           <div className="flex items-start justify-between">
                             <div>
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -573,12 +612,22 @@ export default function SettingsPage() {
                               <p className="text-xs text-gray-500 uppercase font-medium">Type: {field.type}</p>
                             </div>
                             
-                            <button 
-                              onClick={() => confirmDeleteField(field.id, field.label)}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => handleOpenEditField(field)}
+                                className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                title="Edit Field"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => confirmDeleteField(field.id, field.label)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Field"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Category Scope Badges */}
@@ -604,11 +653,12 @@ export default function SettingsPage() {
 
                     <button 
                       onClick={() => {
+                        setEditingFieldId(null);
                         setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
                         setIsCategoryPanelExpanded(false);
                         setFieldDrawerOpen(true);
                       }}
-                      className="h-28 border-2 border-dashed border-gray-200 text-gray-500 font-semibold rounded-2xl hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                      className="h-28 border-2 border-dashed border-gray-200 text-gray-500 font-semibold rounded-2xl hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Plus className="w-5 h-5" /> Add New Form Field
                     </button>
@@ -795,7 +845,9 @@ export default function SettingsPage() {
             
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-6 pb-2 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-gray-900">Add New Form Field</h3>
+              <h3 className="text-xl font-bold text-gray-900">
+                {editingFieldId ? 'Edit Form Field' : 'Add New Form Field'}
+              </h3>
 
               <div className="flex items-center gap-2">
                 <button
@@ -931,7 +983,7 @@ export default function SettingsPage() {
                   className="w-full py-4 bg-[#2B2B2B] text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
                 >
                   {isSavingField && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {isSavingField ? 'Saving...' : 'Save Field'}
+                  {isSavingField ? 'Saving...' : editingFieldId ? 'Update Field' : 'Save Field'}
                 </button>
               </form>
 
