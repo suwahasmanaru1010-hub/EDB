@@ -215,7 +215,7 @@ export default function EntrepreneursPage() {
     setIsLoading(true);
     try {
       const [entRes, catRes] = await Promise.all([
-        supabase.from('entrepreneurs').select('*').neq('status', 'Pending').order('created_at', { ascending: false }),
+        supabase.from('entrepreneurs').select('*').order('created_at', { ascending: false }),
         supabase.from('categories').select('*').order('name', { ascending: true })
       ]);
         
@@ -259,25 +259,32 @@ export default function EntrepreneursPage() {
     e.preventDefault();
     setIsSubmitting(true);
     
+    const nameEntry = Object.entries(dynamicFormData).find(([k]) => k.toLowerCase().includes('name'));
     const nameValue = 
       dynamicFormData['Entrepreneur Name'] || 
       dynamicFormData['Name'] || 
       dynamicFormData['Full Name'] ||
+      dynamicFormData['Name with initials ?'] ||
+      dynamicFormData['Name with initials'] ||
+      dynamicFormData['Business Name ?'] ||
+      dynamicFormData['Business Name'] ||
+      (nameEntry ? nameEntry[1] : null) ||
       Object.values(dynamicFormData)[0] || 
-      'Unknown';
+      'Entrepreneur';
 
+    const ageEntry = Object.entries(dynamicFormData).find(([k]) => k.toLowerCase().includes('age'));
     const ageValue = 
       dynamicFormData['Age'] || 
       dynamicFormData['age'] || 
-      null;
+      (ageEntry ? ageEntry[1] : null);
 
     try {
       const { error } = await supabase.from('entrepreneurs').insert([{
         name: nameValue,
-        age: ageValue ? parseInt(ageValue) : null,
+        age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
         main_category: selectedMainCat?.name || null,
         sub_category: selectedSubCat?.name || null,
-        status: 'Pending',
+        status: 'Active',
         dynamic_data: dynamicFormData
       }]);
       
@@ -288,7 +295,7 @@ export default function EntrepreneursPage() {
       setTimeout(() => {
         setShowSuccess(false);
         handleClose();
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       alert("Error saving: " + err.message);
     } finally {
@@ -296,12 +303,31 @@ export default function EntrepreneursPage() {
     }
   };
 
+  const handleApproveStatus = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const { error } = await supabase.from('entrepreneurs').update({ status: 'Active' }).eq('id', id);
+      if (error) throw error;
+      setEntrepreneurs(prev => prev.map(ent => ent.id === id ? { ...ent, status: 'Active' } : ent));
+    } catch (err: any) {
+      alert("Error updating status: " + err.message);
+    }
+  };
+
   const filteredEntrepreneurs = entrepreneurs.filter(e => {
-    const matchesSearch = e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          e.main_category?.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch = !query || 
+      e.name?.toLowerCase().includes(query) || 
+      e.main_category?.toLowerCase().includes(query) ||
+      e.sub_category?.toLowerCase().includes(query) ||
+      (e.dynamic_data && Object.values(e.dynamic_data).some(v => String(v).toLowerCase().includes(query)));
     
-    const matchesMainCategory = selectedCategory ? e.main_category === selectedCategory : true;
-    const matchesSubCategory = selectedSubCategory ? e.sub_category === selectedSubCategory : true;
+    const matchesMainCategory = selectedCategory 
+      ? (e.main_category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase()) 
+      : true;
+    const matchesSubCategory = selectedSubCategory 
+      ? (e.sub_category?.trim().toLowerCase() === selectedSubCategory.trim().toLowerCase()) 
+      : true;
     
     return matchesSearch && matchesMainCategory && matchesSubCategory;
   });
@@ -485,16 +511,36 @@ export default function EntrepreneursPage() {
                         {initials}
                       </div>
 
-                      <div className="flex-1 min-w-0 flex items-start justify-between">
-                        <div>
-                          <p className="font-bold text-gray-900 text-base truncate">{e.name || 'Unknown'}</p>
+                      <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <p className="font-bold text-gray-900 text-base truncate">{e.name || 'Unknown'}</p>
+                            {e.status === 'Pending' && (
+                              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+                                Pending Approval
+                              </span>
+                            )}
+                          </div>
                           {(e.main_category || e.sub_category) && (
-                            <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                            <p className="text-xs text-gray-500 font-medium truncate">
                               {e.main_category}{e.sub_category ? ` · ${e.sub_category}` : ''}
                             </p>
                           )}
                         </div>
-                        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 mt-1 shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+
+                        <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                          {e.status === 'Pending' && (
+                            <button
+                              type="button"
+                              onClick={(ev) => handleApproveStatus(e.id, ev)}
+                              className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold transition-all shadow-xs cursor-pointer"
+                              title="Approve submission"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
                       </div>
                     </div>
 

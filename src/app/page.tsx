@@ -233,7 +233,6 @@ export default function HomeDashboard() {
       const { data, error } = await supabase
         .from('entrepreneurs')
         .select('*')
-        .neq('status', 'Pending')
         .order('created_at', { ascending: false })
         .limit(6);
       if (!error && data) setRecentEntrepreneurs(data);
@@ -269,25 +268,32 @@ export default function HomeDashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     
+    const nameEntry = Object.entries(dynamicFormData).find(([k]) => k.toLowerCase().includes('name'));
     const nameValue = 
       dynamicFormData['Entrepreneur Name'] || 
       dynamicFormData['Name'] || 
       dynamicFormData['Full Name'] ||
+      dynamicFormData['Name with initials ?'] ||
+      dynamicFormData['Name with initials'] ||
+      dynamicFormData['Business Name ?'] ||
+      dynamicFormData['Business Name'] ||
+      (nameEntry ? nameEntry[1] : null) ||
       Object.values(dynamicFormData)[0] || 
-      'Unknown';
+      'Entrepreneur';
 
+    const ageEntry = Object.entries(dynamicFormData).find(([k]) => k.toLowerCase().includes('age'));
     const ageValue = 
       dynamicFormData['Age'] || 
       dynamicFormData['age'] || 
-      null;
+      (ageEntry ? ageEntry[1] : null);
 
     try {
       const { error } = await supabase.from('entrepreneurs').insert([{
         name: nameValue,
-        age: ageValue ? parseInt(ageValue) : null,
+        age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
         main_category: selectedMainCat?.name || null,
         sub_category: selectedSubCat?.name || null,
-        status: 'Pending',
+        status: 'Active',
         dynamic_data: dynamicFormData
       }]);
       
@@ -299,7 +305,7 @@ export default function HomeDashboard() {
       setTimeout(() => {
         setShowSuccess(false);
         handleClose();
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       alert("Error saving: " + err.message);
     } finally {
