@@ -11,6 +11,8 @@ type FormField = {
   type: string;
   required: boolean;
   category_name?: string | null;
+  options?: string[] | string | null;
+  is_multiple?: boolean | null;
 };
 
 function PublicFormContent() {
@@ -252,6 +254,75 @@ function PublicFormContent() {
                           onChange={(e) => handleDynamicChange(field.label, e.target.value)}
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all font-medium min-h-[120px] resize-y"
                         />
+                      ) : field.type === 'select' ? (
+                        (() => {
+                          let optionsList: string[] = [];
+                          if (Array.isArray(field.options)) {
+                            optionsList = field.options;
+                          } else if (typeof field.options === 'string') {
+                            try {
+                              const parsed = JSON.parse(field.options);
+                              if (Array.isArray(parsed)) optionsList = parsed;
+                              else optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
+                            } catch {
+                              optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
+                            }
+                          }
+
+                          if (field.is_multiple) {
+                            const currentSelected: string[] = formData[field.label] 
+                              ? (Array.isArray(formData[field.label]) ? formData[field.label] : String(formData[field.label]).split(',').map((s: string) => s.trim()).filter(Boolean))
+                              : [];
+
+                            const toggleOption = (opt: string) => {
+                              const updated = currentSelected.includes(opt)
+                                ? currentSelected.filter((item: string) => item !== opt)
+                                : [...currentSelected, opt];
+                              handleDynamicChange(field.label, updated.join(', '));
+                            };
+
+                            return (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200">
+                                {optionsList.map((opt, idx) => {
+                                  const isChecked = currentSelected.includes(opt);
+                                  return (
+                                    <label 
+                                      key={idx} 
+                                      onClick={() => toggleOption(opt)}
+                                      className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                                        isChecked 
+                                          ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm font-semibold' 
+                                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      <input 
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {}}
+                                        className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 pointer-events-none"
+                                      />
+                                      <span className="text-xs">{opt}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <select
+                              required={field.required}
+                              value={formData[field.label] || ''}
+                              onChange={(e) => handleDynamicChange(field.label, e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all font-medium text-gray-900 cursor-pointer"
+                            >
+                              <option value="">-- Select {field.label} --</option>
+                              {optionsList.map((opt, idx) => (
+                                <option key={idx} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          );
+                        })()
                       ) : field.type === 'file' ? (
                         <div className="w-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-100 transition-colors cursor-pointer">
                           <input

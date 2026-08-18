@@ -22,6 +22,8 @@ type FormField = {
   required: boolean;
   order_index: number;
   category_name?: string | null;
+  options?: string[] | string | null;
+  is_multiple?: boolean | null;
 };
 
 type SystemUser = {
@@ -72,13 +74,19 @@ export default function SettingsPage() {
     type: string;
     required: boolean;
     selectedCategoryNames: string[];
+    options: string[];
+    is_multiple: boolean;
   }>({ 
     label: '', 
     type: 'text', 
     required: true,
-    selectedCategoryNames: ['all']
+    selectedCategoryNames: ['all'],
+    options: [],
+    is_multiple: false
   });
   
+  const [optionInput, setOptionInput] = useState("");
+  const [activeSideTab, setActiveSideTab] = useState<'options' | 'categories'>('options');
   const [isSavingField, setIsSavingField] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [expandedCatIdsInPicker, setExpandedCatIdsInPicker] = useState<string[]>([]);
@@ -93,6 +101,7 @@ export default function SettingsPage() {
   const FIELD_TYPES = [
     { value: 'text', label: 'Text (Short)' },
     { value: 'textarea', label: 'Long Text' },
+    { value: 'select', label: 'Selection / Options' },
     { value: 'number', label: 'Number' },
     { value: 'tel', label: 'Phone Number' },
     { value: 'email', label: 'Email' },
@@ -261,25 +270,69 @@ export default function SettingsPage() {
     );
   };
 
+  const handleAddOption = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!optionInput.trim()) return;
+    if (newField.options.includes(optionInput.trim())) {
+      setOptionInput("");
+      return;
+    }
+    setNewField(prev => ({
+      ...prev,
+      options: [...prev.options, optionInput.trim()]
+    }));
+    setOptionInput("");
+  };
+
+  const handleRemoveOption = (index: number) => {
+    setNewField(prev => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleOpenEditField = (field: FormField) => {
     const catList = field.category_name 
       ? field.category_name.split(',').map(s => s.trim()).filter(Boolean)
       : ['all'];
     
+    let parsedOptions: string[] = [];
+    if (Array.isArray(field.options)) {
+      parsedOptions = field.options;
+    } else if (typeof field.options === 'string') {
+      try {
+        const json = JSON.parse(field.options);
+        if (Array.isArray(json)) parsedOptions = json;
+        else parsedOptions = field.options.split(',').map(s => s.trim()).filter(Boolean);
+      } catch {
+        parsedOptions = field.options.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
     setEditingFieldId(field.id);
     setNewField({
       label: field.label,
-      type: field.type,
+      type: field.type || 'text',
       required: field.required,
-      selectedCategoryNames: catList.length > 0 ? catList : ['all']
+      selectedCategoryNames: catList.length > 0 ? catList : ['all'],
+      options: parsedOptions,
+      is_multiple: Boolean(field.is_multiple)
     });
+    setOptionInput("");
     setIsCategoryPanelExpanded(false);
+    setActiveSideTab(field.type === 'select' ? 'options' : 'categories');
     setFieldDrawerOpen(true);
   };
 
   const handleSaveField = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newField.label.trim()) return;
+
+    if (newField.type === 'select' && newField.options.length === 0) {
+      alert("Please add at least one option for this selection field.");
+      return;
+    }
+
     setIsSavingField(true);
 
     const isAll = newField.selectedCategoryNames.includes('all') || newField.selectedCategoryNames.length === 0;
@@ -289,7 +342,9 @@ export default function SettingsPage() {
       label: newField.label.trim(), 
       type: newField.type, 
       required: newField.required,
-      category_name: categoryString
+      category_name: categoryString,
+      options: newField.type === 'select' ? newField.options : null,
+      is_multiple: newField.type === 'select' ? newField.is_multiple : false
     };
 
     try {
@@ -300,9 +355,13 @@ export default function SettingsPage() {
           .eq('id', editingFieldId)
           .select();
 
-        if (error && error.message.includes('category_name')) {
-          delete payload.category_name;
-          const res = await supabase.from('form_fields').update(payload).eq('id', editingFieldId).select();
+        if (error) {
+          // If custom columns (options, is_multiple, category_name) are missing from DB schema, fallback gracefully
+          const fallbackPayload = { ...payload };
+          if (error.message.includes('options')) delete fallbackPayload.options;
+          if (error.message.includes('is_multiple')) delete fallbackPayload.is_multiple;
+          if (error.message.includes('category_name')) delete fallbackPayload.category_name;
+          const res = await supabase.from('form_fields').update(fallbackPayload).eq('id', editingFieldId).select();
           data = res.data;
           error = res.error;
         }
@@ -314,9 +373,12 @@ export default function SettingsPage() {
         payload.order_index = formFields.length;
         let { data, error } = await supabase.from('form_fields').insert([payload]).select();
 
-        if (error && error.message.includes('category_name')) {
-          delete payload.category_name;
-          const res = await supabase.from('form_fields').insert([payload]).select();
+        if (error) {
+          const fallbackPayload = { ...payload };
+          if (error.message.includes('options')) delete fallbackPayload.options;
+          if (error.message.includes('is_multiple')) delete fallbackPayload.is_multiple;
+          if (error.message.includes('category_name')) delete fallbackPayload.category_name;
+          const res = await supabase.from('form_fields').insert([fallbackPayload]).select();
           data = res.data;
           error = res.error;
         }
@@ -326,7 +388,8 @@ export default function SettingsPage() {
         setFormFields([...formFields, ...(data || [])]);
       }
 
-      setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
+      setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'], options: [], is_multiple: false });
+      setOptionInput("");
       setEditingFieldId(null);
       setFieldDrawerOpen(false);
       setIsCategoryPanelExpanded(false);
@@ -601,6 +664,19 @@ export default function SettingsPage() {
                     {formFields.map((field) => {
                       const catList = field.category_name ? field.category_name.split(',').map(s => s.trim()) : [];
                       
+                      let fieldOptionsList: string[] = [];
+                      if (Array.isArray(field.options)) {
+                        fieldOptionsList = field.options;
+                      } else if (typeof field.options === 'string') {
+                        try {
+                          const parsed = JSON.parse(field.options);
+                          if (Array.isArray(parsed)) fieldOptionsList = parsed;
+                          else fieldOptionsList = field.options.split(',').map(s => s.trim()).filter(Boolean);
+                        } catch {
+                          fieldOptionsList = field.options.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                      }
+                      
                       return (
                         <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-shadow">
                           <div className="flex items-start justify-between">
@@ -608,8 +684,31 @@ export default function SettingsPage() {
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <span className="font-semibold text-gray-900">{field.label}</span>
                                 {field.required && <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">REQUIRED</span>}
+                                {field.type === 'select' && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    field.is_multiple ? 'bg-purple-50 text-purple-600 border border-purple-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                  }`}>
+                                    {field.is_multiple ? 'MULTI-SELECT' : 'SINGLE-SELECT'}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-gray-500 uppercase font-medium">Type: {field.type}</p>
+                              <p className="text-xs text-gray-500 uppercase font-medium">
+                                Type: {field.type === 'select' ? `Selection (${fieldOptionsList.length} options)` : field.type}
+                              </p>
+                              {field.type === 'select' && fieldOptionsList.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {fieldOptionsList.slice(0, 3).map((opt, idx) => (
+                                    <span key={idx} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
+                                      {opt}
+                                    </span>
+                                  ))}
+                                  {fieldOptionsList.length > 3 && (
+                                    <span className="text-[10px] text-gray-400 font-medium self-center">
+                                      +{fieldOptionsList.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex items-center gap-1">
@@ -831,7 +930,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 2. Add Form Field Drawer/Modal */}
+      {/* 2. Add / Edit Form Field Drawer/Modal */}
       {fieldDrawerOpen && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
           <div 
@@ -839,7 +938,7 @@ export default function SettingsPage() {
             onClick={() => { setFieldDrawerOpen(false); setIsCategoryPanelExpanded(false); }}
           />
           <div className={`relative w-full bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-10 p-6 overflow-y-auto max-h-[90vh] transition-all duration-300 ease-out ${
-            isCategoryPanelExpanded ? 'max-w-md md:max-w-3xl' : 'max-w-md md:max-w-lg'
+            isCategoryPanelExpanded || newField.type === 'select' ? 'max-w-md md:max-w-3xl' : 'max-w-md md:max-w-lg'
           }`}>
             <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4 md:hidden" />
             
@@ -852,8 +951,11 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsCategoryPanelExpanded(!isCategoryPanelExpanded)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                  onClick={() => {
+                    setIsCategoryPanelExpanded(!isCategoryPanelExpanded);
+                    if (!isCategoryPanelExpanded) setActiveSideTab('categories');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
                     isCategoryPanelExpanded || (!newField.selectedCategoryNames.includes('all') && newField.selectedCategoryNames.length > 0)
                       ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm'
                       : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
@@ -870,7 +972,7 @@ export default function SettingsPage() {
 
                 <button 
                   onClick={() => { setFieldDrawerOpen(false); setIsCategoryPanelExpanded(false); }}
-                  className="p-2 bg-gray-50 rounded-full text-gray-500 hover:text-gray-900 transition-colors"
+                  className="p-2 bg-gray-50 rounded-full text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -878,7 +980,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Modal Grid Content */}
-            <div className={`grid grid-cols-1 ${isCategoryPanelExpanded ? 'md:grid-cols-2 gap-6' : ''}`}>
+            <div className={`grid grid-cols-1 ${isCategoryPanelExpanded || newField.type === 'select' ? 'md:grid-cols-2 gap-6' : ''}`}>
               
               {/* Left Pane: Form Inputs */}
               <form onSubmit={handleSaveField} className="space-y-5">
@@ -887,7 +989,7 @@ export default function SettingsPage() {
                   <input 
                     autoFocus
                     type="text" 
-                    placeholder="e.g. Website URL"
+                    placeholder="e.g. Preferred Language, Gender"
                     value={newField.label}
                     onChange={e => setNewField({...newField, label: e.target.value})}
                     className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -901,10 +1003,10 @@ export default function SettingsPage() {
                     <button 
                       type="button"
                       onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 flex justify-between items-center relative z-20"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 flex justify-between items-center relative z-20 cursor-pointer"
                     >
-                      <span>{FIELD_TYPES.find(t => t.value === newField.type)?.label || 'Select Type'}</span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
+                      <span className="truncate">{FIELD_TYPES.find(t => t.value === newField.type)?.label || 'Select Type'}</span>
+                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-300 shrink-0 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isTypeDropdownOpen && (
@@ -916,8 +1018,9 @@ export default function SettingsPage() {
                             onClick={() => {
                               setNewField({ ...newField, type: type.value });
                               setIsTypeDropdownOpen(false);
+                              if (type.value === 'select') setActiveSideTab('options');
                             }}
-                            className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors ${
+                            className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors cursor-pointer ${
                               newField.type === type.value ? 'bg-gray-100 font-bold text-gray-900' : 'text-gray-700'
                             }`}
                           >
@@ -945,16 +1048,34 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                {/* Selection Summary Box on Left Pane */}
+                {newField.type === 'select' && (
+                  <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">Selection Configuration</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${newField.is_multiple ? 'bg-purple-200 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {newField.is_multiple ? 'Multiple Answers' : 'Single Answer'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-700 font-medium">
+                      {newField.options.length > 0 ? `${newField.options.length} options added (see right panel to edit)` : '👉 Add options in the right panel'}
+                    </p>
+                  </div>
+                )}
+
                 {/* Category Scope Summary Box */}
                 <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target Categories</span>
                     <button
                       type="button"
-                      onClick={() => setIsCategoryPanelExpanded(!isCategoryPanelExpanded)}
-                      className="text-xs font-bold text-[#2B2B2B] hover:underline"
+                      onClick={() => {
+                        setIsCategoryPanelExpanded(!isCategoryPanelExpanded);
+                        if (!isCategoryPanelExpanded) setActiveSideTab('categories');
+                      }}
+                      className="text-xs font-bold text-[#2B2B2B] hover:underline cursor-pointer"
                     >
-                      {isCategoryPanelExpanded ? 'Hide Panel' : '+ Select Categories'}
+                      {isCategoryPanelExpanded ? 'Hide Categories' : '+ Select Categories'}
                     </button>
                   </div>
 
@@ -980,86 +1101,205 @@ export default function SettingsPage() {
                 <button 
                   type="submit"
                   disabled={isSavingField}
-                  className="w-full py-4 bg-[#2B2B2B] text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+                  className="w-full py-4 bg-[#2B2B2B] text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer"
                 >
                   {isSavingField && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isSavingField ? 'Saving...' : editingFieldId ? 'Update Field' : 'Save Field'}
                 </button>
               </form>
 
-              {/* Right Pane: Category Picker Side-Panel */}
-              {isCategoryPanelExpanded && (
-                <div className="border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6 space-y-3 animate-in fade-in duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-900">Select Category Scope</h4>
-                      <p className="text-[11px] text-gray-400">Choose categories to attach this field to</p>
+              {/* Right Pane: Options Builder OR Category Picker */}
+              {(isCategoryPanelExpanded || newField.type === 'select') && (
+                <div className="border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6 space-y-4 animate-in fade-in duration-300">
+                  
+                  {/* Right Side Navigation Tabs if both are relevant */}
+                  {newField.type === 'select' && isCategoryPanelExpanded && (
+                    <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSideTab('options')}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                          activeSideTab === 'options' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        Selection Options ({newField.options.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSideTab('categories')}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                          activeSideTab === 'categories' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        Category Scope
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleCategorySelection('all')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
-                        newField.selectedCategoryNames.includes('all')
-                          ? 'bg-[#2B2B2B] text-white border-[#2B2B2B]'
-                          : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
-                      }`}
-                    >
-                      All Categories
-                    </button>
-                  </div>
+                  )}
 
-                  <div className="bg-gray-50/70 border border-gray-200 rounded-2xl p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
-                    {categories.filter(c => c.type === 'main').map(mainCat => {
-                      const subCats = categories.filter(c => c.parent_id === mainCat.id);
-                      const isMainSelected = newField.selectedCategoryNames.includes(mainCat.name);
-                      const isExpanded = expandedCatIdsInPicker.includes(mainCat.id);
+                  {/* 1. SELECTION OPTIONS BUILDER PANEL */}
+                  {newField.type === 'select' && (!isCategoryPanelExpanded || activeSideTab === 'options') && (
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900">Selection Options & Answers</h4>
+                        <p className="text-[11px] text-gray-400">Add the options choices and set the answer type</p>
+                      </div>
 
-                      return (
-                        <div key={mainCat.id} className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
-                          <div className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
-                            <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
-                              <input 
-                                type="checkbox"
-                                checked={isMainSelected}
-                                onChange={() => toggleCategorySelection(mainCat.name)}
-                                className="w-4 h-4 rounded text-[#2B2B2B] focus:ring-gray-900 border-gray-300 cursor-pointer"
-                              />
-                              <span className="text-xs font-bold text-gray-900 truncate">{mainCat.name}</span>
-                            </label>
-
-                            {subCats.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => togglePickerCategoryExpand(mainCat.id)}
-                                className="p-1 text-gray-400 hover:text-gray-900 rounded-md transition-colors"
-                              >
-                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                              </button>
-                            )}
+                      {/* Multiple vs Single Answer Tick/Toggle */}
+                      <label className="flex items-start gap-3 p-3.5 bg-gray-50 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-100/80 transition-all select-none">
+                        <input 
+                          type="checkbox"
+                          checked={newField.is_multiple}
+                          onChange={(e) => setNewField(prev => ({ ...prev, is_multiple: e.target.checked }))}
+                          className="w-5 h-5 rounded mt-0.5 text-[#2B2B2B] focus:ring-gray-900 border-gray-300 cursor-pointer accent-[#2B2B2B]"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-900">Allow Multiple Answers</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${newField.is_multiple ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-700'}`}>
+                              {newField.is_multiple ? 'Checkboxes' : 'Single (Dropdown)'}
+                            </span>
                           </div>
-
-                          {isExpanded && subCats.length > 0 && (
-                            <div className="bg-gray-50 p-2.5 border-t border-gray-100 space-y-1.5 pl-6 animate-in fade-in duration-150">
-                              {subCats.map(subCat => {
-                                const isSubSelected = newField.selectedCategoryNames.includes(subCat.name);
-                                return (
-                                  <label key={subCat.id} className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
-                                    <input 
-                                      type="checkbox"
-                                      checked={isSubSelected}
-                                      onChange={() => toggleCategorySelection(subCat.name)}
-                                      className="w-3.5 h-3.5 rounded text-[#2B2B2B] focus:ring-gray-900 border-gray-300 cursor-pointer"
-                                    />
-                                    <span className="text-xs font-medium text-gray-700 truncate">{subCat.name}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {newField.is_multiple ? 'Users can select multiple choices.' : 'Users can only select one single answer.'}
+                          </p>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </label>
+
+                      {/* Add Option Input */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block">
+                          Add Option Choice
+                        </label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            placeholder="Type option name & press Add"
+                            value={optionInput}
+                            onChange={e => setOptionInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddOption();
+                              }
+                            }}
+                            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-900"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => handleAddOption()}
+                            className="px-4 py-2.5 bg-[#2B2B2B] text-white rounded-xl text-xs font-bold hover:bg-black transition-all flex items-center gap-1 shadow-sm cursor-pointer shrink-0"
+                          >
+                            <Plus className="w-4 h-4" /> Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Options List */}
+                      <div className="space-y-1.5 max-h-[220px] overflow-y-auto no-scrollbar pt-1">
+                        {newField.options.length === 0 ? (
+                          <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                            <p className="text-xs text-gray-500 font-medium">No options added yet.</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">Type an option name above and click Add</p>
+                          </div>
+                        ) : (
+                          newField.options.map((opt, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-xl shadow-xs hover:border-gray-300 transition-colors">
+                              <div className="flex items-center gap-2.5">
+                                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center justify-center">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-xs font-semibold text-gray-900">{opt}</span>
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveOption(idx)}
+                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remove Option"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. CATEGORY PICKER PANEL */}
+                  {(newField.type !== 'select' || (isCategoryPanelExpanded && activeSideTab === 'categories')) && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-900">Select Category Scope</h4>
+                          <p className="text-[11px] text-gray-400">Choose categories to attach this field to</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleCategorySelection('all')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                            newField.selectedCategoryNames.includes('all')
+                              ? 'bg-[#2B2B2B] text-white border-[#2B2B2B]'
+                              : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
+                          }`}
+                        >
+                          All Categories
+                        </button>
+                      </div>
+
+                      <div className="bg-gray-50/70 border border-gray-200 rounded-2xl p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
+                        {categories.filter(c => c.type === 'main').map(mainCat => {
+                          const subCats = categories.filter(c => c.parent_id === mainCat.id);
+                          const isMainSelected = newField.selectedCategoryNames.includes(mainCat.name);
+                          const isExpanded = expandedCatIdsInPicker.includes(mainCat.id);
+
+                          return (
+                            <div key={mainCat.id} className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
+                              <div className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
+                                <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isMainSelected}
+                                    onChange={() => toggleCategorySelection(mainCat.name)}
+                                    className="w-4 h-4 rounded text-[#2B2B2B] focus:ring-gray-900 border-gray-300 cursor-pointer"
+                                  />
+                                  <span className="text-xs font-bold text-gray-900 truncate">{mainCat.name}</span>
+                                </label>
+
+                                {subCats.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePickerCategoryExpand(mainCat.id)}
+                                    className="p-1 text-gray-400 hover:text-gray-900 rounded-md transition-colors cursor-pointer"
+                                  >
+                                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {isExpanded && subCats.length > 0 && (
+                                <div className="bg-gray-50 p-2.5 border-t border-gray-100 space-y-1.5 pl-6 animate-in fade-in duration-150">
+                                  {subCats.map(subCat => {
+                                    const isSubSelected = newField.selectedCategoryNames.includes(subCat.name);
+                                    return (
+                                      <label key={subCat.id} className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                                        <input 
+                                          type="checkbox"
+                                          checked={isSubSelected}
+                                          onChange={() => toggleCategorySelection(subCat.name)}
+                                          className="w-3.5 h-3.5 rounded text-[#2B2B2B] focus:ring-gray-900 border-gray-300 cursor-pointer"
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 truncate">{subCat.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

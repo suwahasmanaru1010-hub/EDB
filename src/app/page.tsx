@@ -22,6 +22,8 @@ type FormField = {
   required: boolean;
   order_index: number;
   category_name?: string | null;
+  options?: string[] | string | null;
+  is_multiple?: boolean | null;
 };
 
 const CustomDatePicker = ({ 
@@ -606,6 +608,75 @@ export default function HomeDashboard() {
                                 className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all min-h-[100px]"
                                 required={field.required}
                               />
+                            ) : field.type === 'select' ? (
+                              (() => {
+                                let optionsList: string[] = [];
+                                if (Array.isArray(field.options)) {
+                                  optionsList = field.options;
+                                } else if (typeof field.options === 'string') {
+                                  try {
+                                    const parsed = JSON.parse(field.options);
+                                    if (Array.isArray(parsed)) optionsList = parsed;
+                                    else optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                  } catch {
+                                    optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                  }
+                                }
+
+                                if (field.is_multiple) {
+                                  const currentSelected: string[] = dynamicFormData[field.label]
+                                    ? (Array.isArray(dynamicFormData[field.label]) ? dynamicFormData[field.label] : String(dynamicFormData[field.label]).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                    : [];
+
+                                  const toggleOption = (opt: string) => {
+                                    const updated = currentSelected.includes(opt)
+                                      ? currentSelected.filter((item: string) => item !== opt)
+                                      : [...currentSelected, opt];
+                                    setDynamicFormData({ ...dynamicFormData, [field.label]: updated.join(', ') });
+                                  };
+
+                                  return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50/70 p-3 rounded-xl border border-gray-200">
+                                      {optionsList.map((opt, idx) => {
+                                        const isChecked = currentSelected.includes(opt);
+                                        return (
+                                          <label
+                                            key={idx}
+                                            onClick={() => toggleOption(opt)}
+                                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                                              isChecked
+                                                ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] font-semibold'
+                                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => {}}
+                                              className="w-3.5 h-3.5 rounded text-black pointer-events-none"
+                                            />
+                                            <span className="truncate">{opt}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <select
+                                    value={dynamicFormData[field.label] || ''}
+                                    onChange={(e) => setDynamicFormData({...dynamicFormData, [field.label]: e.target.value})}
+                                    required={field.required}
+                                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all text-sm cursor-pointer"
+                                  >
+                                    <option value="">-- Select {field.label} --</option>
+                                    {optionsList.map((opt, idx) => (
+                                      <option key={idx} value={opt}>{opt}</option>
+                                    ))}
+                                  </select>
+                                );
+                              })()
                             ) : field.type === 'date' ? (
                               <CustomDatePicker 
                                 value={dynamicFormData[field.label] || ''} 
