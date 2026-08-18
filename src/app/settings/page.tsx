@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight, X, Loader2, AlertTriangle, Home, Users, Settings, Pencil, Tag, Check, ShieldCheck, Eye, EyeOff, KeyRound, User } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight, X, Loader2, AlertTriangle, Home, Users, Settings, Pencil, Tag, Check, ShieldCheck, Eye, EyeOff, KeyRound, User, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -461,6 +461,61 @@ export default function SettingsPage() {
     }
   };
 
+  const handleMoveField = async (currentIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= formFields.length) return;
+
+    const updatedFields = [...formFields];
+    const [movedItem] = updatedFields.splice(currentIndex, 1);
+    updatedFields.splice(targetIndex, 0, movedItem);
+
+    const reindexed = updatedFields.map((field, idx) => ({
+      ...field,
+      order_index: idx
+    }));
+
+    setFormFields(reindexed);
+
+    try {
+      const updates = reindexed.map(field => 
+        supabase.from('form_fields').update({ order_index: field.order_index }).eq('id', field.id)
+      );
+      await Promise.all(updates);
+    } catch (err) {
+      console.error("Failed to reorder fields in DB:", err);
+    }
+  };
+
+  const handleSetFieldOrder = async (fieldId: string, newOrder1Based: number) => {
+    const currentIndex = formFields.findIndex(f => f.id === fieldId);
+    if (currentIndex === -1) return;
+
+    let targetIndex = newOrder1Based - 1;
+    if (targetIndex < 0) targetIndex = 0;
+    if (targetIndex >= formFields.length) targetIndex = formFields.length - 1;
+    if (currentIndex === targetIndex) return;
+
+    const updatedFields = [...formFields];
+    const [movedItem] = updatedFields.splice(currentIndex, 1);
+    updatedFields.splice(targetIndex, 0, movedItem);
+
+    const reindexed = updatedFields.map((field, idx) => ({
+      ...field,
+      order_index: idx
+    }));
+
+    setFormFields(reindexed);
+
+    try {
+      const updates = reindexed.map(field => 
+        supabase.from('form_fields').update({ order_index: field.order_index }).eq('id', field.id)
+      );
+      await Promise.all(updates);
+    } catch (err) {
+      console.error("Failed to reorder fields in DB:", err);
+    }
+  };
+
   // Add New System User
   const handleSaveAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -703,16 +758,20 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {formFields.map((field) => {
+                    {formFields.map((field, idx) => {
                       const catList = field.category_name ? field.category_name.split(',').map(s => s.trim()) : [];
                       const fieldOptionsList: OptionItem[] = parseFieldOptions(field.options);
                       
                       return (
-                        <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="font-semibold text-gray-900">{field.label}</span>
+                        <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-shadow relative">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                {/* Order Number Badge */}
+                                <span className="bg-[#2B2B2B] text-white text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-xs flex items-center gap-1 shrink-0">
+                                  #{idx + 1}
+                                </span>
+                                <span className="font-semibold text-gray-900 truncate">{field.label}</span>
                                 {field.required && <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">REQUIRED</span>}
                                 {field.type === 'select' && (
                                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -727,8 +786,8 @@ export default function SettingsPage() {
                               </p>
                               {field.type === 'select' && fieldOptionsList.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1.5">
-                                  {fieldOptionsList.slice(0, 3).map((opt, idx) => (
-                                    <span key={idx} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  {fieldOptionsList.slice(0, 3).map((opt, optIdx) => (
+                                    <span key={optIdx} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                                       opt.has_input ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-600'
                                     }`}>
                                       {opt.label} {opt.has_input && '✎'}
@@ -743,17 +802,41 @@ export default function SettingsPage() {
                               )}
                             </div>
                             
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Reorder Up */}
+                              <button 
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveField(idx, 'up')}
+                                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                                title="Move Backward / Up"
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+
+                              {/* Reorder Down */}
+                              <button 
+                                type="button"
+                                disabled={idx === formFields.length - 1}
+                                onClick={() => handleMoveField(idx, 'down')}
+                                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                                title="Move Forward / Down"
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+
+                              <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
+
                               <button 
                                 onClick={() => handleOpenEditField(field)}
-                                className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                 title="Edit Field"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button 
                                 onClick={() => confirmDeleteField(field.id, field.label)}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                 title="Delete Field"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -761,9 +844,23 @@ export default function SettingsPage() {
                             </div>
                           </div>
 
-                          {/* Category Scope Badges */}
-                          <div className="pt-2 border-t border-gray-50 flex items-start justify-between gap-2">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0 mt-0.5">Scope:</span>
+                          {/* Category Scope Badges & Position Selector */}
+                          <div className="pt-2 border-t border-gray-50 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Order:</span>
+                              <select
+                                value={idx + 1}
+                                onChange={(e) => handleSetFieldOrder(field.id, parseInt(e.target.value))}
+                                className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] font-bold rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer hover:bg-gray-100"
+                              >
+                                {formFields.map((_, pIdx) => (
+                                  <option key={pIdx + 1} value={pIdx + 1}>
+                                    #{pIdx + 1}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
                             {catList.length > 0 ? (
                               <div className="flex flex-wrap gap-1 justify-end">
                                 {catList.map(cat => (

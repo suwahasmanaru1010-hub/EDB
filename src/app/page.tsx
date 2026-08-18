@@ -509,7 +509,7 @@ export default function HomeDashboard() {
 
       {/* Add Entrepreneur Drawer (Mobile) / Modal (Desktop) */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
           {/* Overlay */}
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -518,10 +518,13 @@ export default function HomeDashboard() {
 
           {/* Drawer / Modal Box */}
           <div 
-            className="relative w-full max-w-md md:max-w-xl bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-10 transform transition-all duration-300 ease-out overflow-hidden flex flex-col"
-            style={{ height: step === 3 ? '85vh' : '65vh' }}
+            className={`relative w-full bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-10 transform transition-all duration-300 ease-out overflow-hidden flex flex-col ${
+              step === 3 
+                ? 'max-w-4xl lg:max-w-5xl xl:max-w-6xl h-[92vh] max-h-[850px]' 
+                : 'max-w-md md:max-w-xl h-[65vh]'
+            }`}
           >
-            <div className="p-6 h-full flex flex-col relative">
+            <div className="p-6 md:p-8 h-full flex flex-col relative">
               {/* Drawer Handle (Mobile) */}
               <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4 md:hidden" />
               
@@ -537,11 +540,16 @@ export default function HomeDashboard() {
               )}
 
               {/* Header */}
-              <div className="flex items-center justify-between mb-6 pb-2 border-b border-gray-100">
-                <h3 className="text-xl font-bold text-gray-900">
-                  {step === 1 ? "Select Main Category" : step === 2 ? "Select Sub Category" : "Add Entrepreneur Details"}
-                </h3>
-                <button onClick={handleClose} className="p-2 bg-gray-50 rounded-full text-gray-500 hover:text-gray-900 transition-colors">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+                    {step === 1 ? "Select Main Category" : step === 2 ? "Select Sub Category" : "Add Entrepreneur Details"}
+                  </h3>
+                  {step === 3 && (
+                    <p className="text-xs text-gray-400 mt-0.5">Please fill out all required details below</p>
+                  )}
+                </div>
+                <button onClick={handleClose} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-900 transition-colors cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -566,7 +574,7 @@ export default function HomeDashboard() {
                               setSelectedSubCat(null);
                               setStep(hasSub ? 2 : 3);
                             }}
-                            className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-gray-300 text-gray-900 transition-colors bg-white hover:bg-gray-50"
+                            className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-gray-300 text-gray-900 transition-colors bg-white hover:bg-gray-50 cursor-pointer shadow-xs"
                           >
                             <span className="font-semibold">{cat.name}</span>
                             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -579,7 +587,7 @@ export default function HomeDashboard() {
                   <div className="space-y-3">
                     <button 
                       onClick={() => setStep(1)} 
-                      className="text-sm text-gray-500 mb-2 hover:text-gray-900 font-medium flex items-center gap-1 transition-colors"
+                      className="text-sm text-gray-500 mb-2 hover:text-gray-900 font-medium flex items-center gap-1 transition-colors cursor-pointer"
                     >
                        ← Back to Main Category
                     </button>
@@ -599,7 +607,7 @@ export default function HomeDashboard() {
                             setSelectedSubCat(sub);
                             setStep(3);
                           }}
-                          className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-gray-300 text-gray-900 transition-colors bg-white hover:bg-gray-50"
+                          className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-gray-300 text-gray-900 transition-colors bg-white hover:bg-gray-50 cursor-pointer shadow-xs"
                         >
                           <span className="font-semibold">{sub.name}</span>
                         </button>
@@ -607,223 +615,243 @@ export default function HomeDashboard() {
                     )}
                   </div>
                 ) : (
-                  <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 p-1">
-                    <button 
-                      onClick={() => {
-                         const hasSub = selectedMainCat && dbCategories.some(c => c.type === 'sub' && c.parent_id === selectedMainCat.id);
-                         setStep(hasSub ? 2 : 1);
-                      }} 
-                      className="text-sm text-gray-500 mb-1 hover:text-gray-900 font-medium flex items-center gap-1 transition-colors"
-                    >
-                       {selectedMainCat && dbCategories.some(c => c.type === 'sub' && c.parent_id === selectedMainCat.id) ? "← Back to Sub Categories" : "← Back to Categories"}
-                    </button>
-                    
-                    <div className="mb-4">
-                      <p className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg inline-block border border-gray-200">
-                        {selectedMainCat?.name} {selectedSubCat && <><ChevronRight className="w-3 h-3 inline mx-1 text-gray-400" /> {selectedSubCat.name}</>}
-                      </p>
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-5 p-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <button 
+                        onClick={() => {
+                           const hasSub = selectedMainCat && dbCategories.some(c => c.type === 'sub' && c.parent_id === selectedMainCat.id);
+                           setStep(hasSub ? 2 : 1);
+                        }} 
+                        className="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 transition-colors cursor-pointer bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg"
+                      >
+                         {selectedMainCat && dbCategories.some(c => c.type === 'sub' && c.parent_id === selectedMainCat.id) ? "← Change Sub Category" : "← Change Category"}
+                      </button>
+                      
+                      <div className="flex items-center gap-1.5 bg-blue-50/70 border border-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700">
+                        <span>{selectedMainCat?.name}</span>
+                        {selectedSubCat && (
+                          <>
+                            <ChevronRight className="w-3.5 h-3.5 text-blue-400" />
+                            <span>{selectedSubCat.name}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    <form className="space-y-4" onSubmit={handleSubmit}>
+                    <form className="space-y-6" onSubmit={handleSubmit}>
                       {visibleFormFields.length === 0 ? (
-                        <div className="text-center py-8">
+                        <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                           <p className="text-sm text-gray-500 mb-3">No form fields configured for this category.</p>
                           <Link href="/settings" className="text-[#2B2B2B] text-sm font-bold underline">Go to Settings to build your form</Link>
                         </div>
                       ) : (
-                        visibleFormFields.map(field => (
-                          <div key={field.id} className="space-y-1.5">
-                            <label className="text-sm font-semibold text-gray-900">
-                              {field.label} {field.required && <span className="text-red-500">*</span>}
-                            </label>
-                            {field.type === 'textarea' ? (
-                              <textarea 
-                                value={dynamicFormData[field.label] || ''}
-                                onChange={(e) => setDynamicFormData({...dynamicFormData, [field.label]: e.target.value})}
-                                placeholder={`Enter ${field.label}`} 
-                                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all min-h-[100px]"
-                                required={field.required}
-                              />
-                            ) : field.type === 'select' ? (
-                              (() => {
-                                const optionsList: OptionItem[] = parseFieldOptions(field.options);
-                                const rawVal = dynamicFormData[field.label];
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                          {visibleFormFields.map(field => {
+                            const isFullWidth = field.type === 'textarea' || (field.type === 'select' && field.is_multiple);
 
-                                if (field.is_multiple) {
-                                  const rawList: string[] = rawVal 
-                                    ? (Array.isArray(rawVal) ? (rawVal as string[]) : String(rawVal).split(',').map((s: string) => s.trim()).filter(Boolean))
-                                    : [];
+                            return (
+                              <div key={field.id} className={`space-y-1.5 ${isFullWidth ? 'md:col-span-2' : 'md:col-span-1'}`}>
+                                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                                </label>
 
-                                  const selectedMap: Record<string, string> = {};
-                                  rawList.forEach(item => {
-                                    const colonIdx = item.indexOf(': ');
-                                    if (colonIdx !== -1) {
-                                      selectedMap[item.substring(0, colonIdx).trim()] = item.substring(colonIdx + 2).trim();
-                                    } else {
-                                      selectedMap[item.trim()] = '';
-                                    }
-                                  });
+                                {field.type === 'textarea' ? (
+                                  <textarea 
+                                    value={dynamicFormData[field.label] || ''}
+                                    onChange={(e) => setDynamicFormData({...dynamicFormData, [field.label]: e.target.value})}
+                                    placeholder={`Enter ${field.label}`} 
+                                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all min-h-[90px] text-sm"
+                                    required={field.required}
+                                  />
+                                ) : field.type === 'select' ? (
+                                  (() => {
+                                    const optionsList: OptionItem[] = parseFieldOptions(field.options);
+                                    const rawVal = dynamicFormData[field.label];
 
-                                  const toggleOption = (optLabel: string) => {
-                                    setDynamicFormData(prev => {
-                                      const prevRaw = prev[field.label];
-                                      const curList: string[] = prevRaw
-                                        ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                    if (field.is_multiple) {
+                                      const rawList: string[] = rawVal 
+                                        ? (Array.isArray(rawVal) ? (rawVal as string[]) : String(rawVal).split(',').map((s: string) => s.trim()).filter(Boolean))
                                         : [];
-                                      
-                                      const isAlreadySelected = curList.some(item => item.startsWith(optLabel + ': ') || item === optLabel);
-                                      let updated: string[];
-                                      if (isAlreadySelected) {
-                                        updated = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
-                                      } else {
-                                        updated = [...curList, optLabel];
-                                      }
-                                      return { ...prev, [field.label]: updated.join(', ') };
-                                    });
-                                  };
 
-                                  const updateOptionAnswer = (optLabel: string, text: string) => {
-                                    setDynamicFormData(prev => {
-                                      const prevRaw = prev[field.label];
-                                      const curList: string[] = prevRaw
-                                        ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
-                                        : [];
-                                      
-                                      const filtered = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
-                                      const newEntry = text.trim() ? `${optLabel}: ${text.trim()}` : optLabel;
-                                      return { ...prev, [field.label]: [...filtered, newEntry].join(', ') };
-                                    });
-                                  };
-
-                                  return (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-gray-50/70 p-3 rounded-xl border border-gray-200">
-                                      {optionsList.map((opt, idx) => {
-                                        const isChecked = Object.prototype.hasOwnProperty.call(selectedMap, opt.label);
-                                        const currentDetail = selectedMap[opt.label] || '';
-
-                                        return (
-                                          <div 
-                                            key={idx} 
-                                            className={`p-2.5 rounded-lg border transition-all ${
-                                              isChecked 
-                                                ? 'bg-white border-[#2B2B2B] shadow-xs' 
-                                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
-                                            }`}
-                                          >
-                                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                                              <input 
-                                                type="checkbox"
-                                                checked={isChecked}
-                                                onChange={() => toggleOption(opt.label)}
-                                                className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
-                                              />
-                                              <span className="text-xs font-semibold text-gray-900">{opt.label}</span>
-                                            </label>
-
-                                            {isChecked && opt.has_input && (
-                                              <div className="mt-2 pl-6 animate-in fade-in duration-150">
-                                                <input
-                                                  type="text"
-                                                  placeholder={`Enter details for ${opt.label}...`}
-                                                  value={currentDetail}
-                                                  onChange={(e) => updateOptionAnswer(opt.label, e.target.value)}
-                                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs focus:outline-none focus:border-[#2B2B2B] font-medium"
-                                                />
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                }
-
-                                // Single selection
-                                let selectedChoice = '';
-                                let textAnswer = '';
-                                if (typeof rawVal === 'string' && rawVal) {
-                                  const colonIdx = rawVal.indexOf(': ');
-                                  if (colonIdx !== -1) {
-                                    selectedChoice = rawVal.substring(0, colonIdx).trim();
-                                    textAnswer = rawVal.substring(colonIdx + 2).trim();
-                                  } else {
-                                    selectedChoice = rawVal.trim();
-                                  }
-                                }
-
-                                const activeOptObj = optionsList.find(o => o.label === selectedChoice);
-
-                                return (
-                                  <div className="space-y-2">
-                                    <select
-                                      value={selectedChoice}
-                                      onChange={(e) => {
-                                        const choice = e.target.value;
-                                        const optObj = optionsList.find(o => o.label === choice);
-                                        if (optObj?.has_input && textAnswer) {
-                                          setDynamicFormData({ ...dynamicFormData, [field.label]: `${choice}: ${textAnswer}` });
+                                      const selectedMap: Record<string, string> = {};
+                                      rawList.forEach(item => {
+                                        const colonIdx = item.indexOf(': ');
+                                        if (colonIdx !== -1) {
+                                          selectedMap[item.substring(0, colonIdx).trim()] = item.substring(colonIdx + 2).trim();
                                         } else {
-                                          setDynamicFormData({ ...dynamicFormData, [field.label]: choice });
+                                          selectedMap[item.trim()] = '';
                                         }
-                                      }}
-                                      required={field.required}
-                                      className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all text-sm cursor-pointer"
-                                    >
-                                      <option value="">-- Select {field.label} --</option>
-                                      {optionsList.map((opt, idx) => (
-                                        <option key={idx} value={opt.label}>{opt.label}</option>
-                                      ))}
-                                    </select>
+                                      });
 
-                                    {activeOptObj?.has_input && (
-                                      <div className="animate-in fade-in duration-200 pl-1">
-                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                                          {selectedChoice} - Details / Answer:
-                                        </label>
-                                        <input
-                                          type="text"
-                                          placeholder={`Enter details for ${selectedChoice}...`}
-                                          value={textAnswer}
+                                      const toggleOption = (optLabel: string) => {
+                                        setDynamicFormData(prev => {
+                                          const prevRaw = prev[field.label];
+                                          const curList: string[] = prevRaw
+                                            ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                            : [];
+                                          
+                                          const isAlreadySelected = curList.some(item => item.startsWith(optLabel + ': ') || item === optLabel);
+                                          let updated: string[];
+                                          if (isAlreadySelected) {
+                                            updated = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
+                                          } else {
+                                            updated = [...curList, optLabel];
+                                          }
+                                          return { ...prev, [field.label]: updated.join(', ') };
+                                        });
+                                      };
+
+                                      const updateOptionAnswer = (optLabel: string, text: string) => {
+                                        setDynamicFormData(prev => {
+                                          const prevRaw = prev[field.label];
+                                          const curList: string[] = prevRaw
+                                            ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                            : [];
+                                          
+                                          const filtered = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
+                                          const newEntry = text.trim() ? `${optLabel}: ${text.trim()}` : optLabel;
+                                          return { ...prev, [field.label]: [...filtered, newEntry].join(', ') };
+                                        });
+                                      };
+
+                                      return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200">
+                                          {optionsList.map((opt, idx) => {
+                                            const isChecked = Object.prototype.hasOwnProperty.call(selectedMap, opt.label);
+                                            const currentDetail = selectedMap[opt.label] || '';
+
+                                            return (
+                                              <div 
+                                                key={idx} 
+                                                className={`p-2.5 rounded-lg border transition-all ${
+                                                  isChecked 
+                                                    ? 'bg-white border-[#2B2B2B] shadow-xs' 
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                                                }`}
+                                              >
+                                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                  <input 
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => toggleOption(opt.label)}
+                                                    className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
+                                                  />
+                                                  <span className="text-xs font-semibold text-gray-900">{opt.label}</span>
+                                                </label>
+
+                                                {isChecked && opt.has_input && (
+                                                  <div className="mt-2 pl-6 animate-in fade-in duration-150">
+                                                    <input
+                                                      type="text"
+                                                      placeholder={`Enter details for ${opt.label}...`}
+                                                      value={currentDetail}
+                                                      onChange={(e) => updateOptionAnswer(opt.label, e.target.value)}
+                                                      className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs focus:outline-none focus:border-[#2B2B2B] font-medium"
+                                                    />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    }
+
+                                    // Single selection
+                                    let selectedChoice = '';
+                                    let textAnswer = '';
+                                    if (typeof rawVal === 'string' && rawVal) {
+                                      const colonIdx = rawVal.indexOf(': ');
+                                      if (colonIdx !== -1) {
+                                        selectedChoice = rawVal.substring(0, colonIdx).trim();
+                                        textAnswer = rawVal.substring(colonIdx + 2).trim();
+                                      } else {
+                                        selectedChoice = rawVal.trim();
+                                      }
+                                    }
+
+                                    const activeOptObj = optionsList.find(o => o.label === selectedChoice);
+
+                                    return (
+                                      <div className="space-y-2">
+                                        <select
+                                          value={selectedChoice}
                                           onChange={(e) => {
-                                            const txt = e.target.value;
-                                            setDynamicFormData({ ...dynamicFormData, [field.label]: txt ? `${selectedChoice}: ${txt}` : selectedChoice });
+                                            const choice = e.target.value;
+                                            const optObj = optionsList.find(o => o.label === choice);
+                                            if (optObj?.has_input && textAnswer) {
+                                              setDynamicFormData({ ...dynamicFormData, [field.label]: `${choice}: ${textAnswer}` });
+                                            } else {
+                                              setDynamicFormData({ ...dynamicFormData, [field.label]: choice });
+                                            }
                                           }}
                                           required={field.required}
-                                          className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] text-xs font-medium text-gray-900 shadow-xs"
-                                        />
+                                          className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all text-sm cursor-pointer"
+                                        >
+                                          <option value="">-- Select {field.label} --</option>
+                                          {optionsList.map((opt, idx) => (
+                                            <option key={idx} value={opt.label}>{opt.label}</option>
+                                          ))}
+                                        </select>
+
+                                        {activeOptObj?.has_input && (
+                                          <div className="animate-in fade-in duration-200 pl-1">
+                                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                                              {selectedChoice} - Details / Answer:
+                                            </label>
+                                            <input
+                                              type="text"
+                                              placeholder={`Enter details for ${selectedChoice}...`}
+                                              value={textAnswer}
+                                              onChange={(e) => {
+                                                const txt = e.target.value;
+                                                setDynamicFormData({ ...dynamicFormData, [field.label]: txt ? `${selectedChoice}: ${txt}` : selectedChoice });
+                                              }}
+                                              required={field.required}
+                                              className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] text-xs font-medium text-gray-900 shadow-xs"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })()
-                            ) : field.type === 'date' ? (
-                              <CustomDatePicker 
-                                value={dynamicFormData[field.label] || ''} 
-                                onChange={(val) => setDynamicFormData({...dynamicFormData, [field.label]: val})}
-                              />
-                            ) : (
-                              <input 
-                                type={field.type} 
-                                value={dynamicFormData[field.label] || ''}
-                                onChange={(e) => setDynamicFormData({...dynamicFormData, [field.label]: e.target.value})}
-                                placeholder={`Enter ${field.label}`} 
-                                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all"
-                                required={field.required}
-                              />
-                            )}
-                          </div>
-                        ))
+                                    );
+                                  })()
+                                ) : field.type === 'date' ? (
+                                  <CustomDatePicker 
+                                    value={dynamicFormData[field.label] || ''} 
+                                    onChange={(val) => setDynamicFormData({...dynamicFormData, [field.label]: val})}
+                                  />
+                                ) : (
+                                  <input 
+                                    type={field.type} 
+                                    value={dynamicFormData[field.label] || ''}
+                                    onChange={(e) => setDynamicFormData({...dynamicFormData, [field.label]: e.target.value})}
+                                    placeholder={`Enter ${field.label}`} 
+                                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#2B2B2B] focus:bg-white transition-all text-sm"
+                                    required={field.required}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
 
                       {visibleFormFields.length > 0 && (
-                        <div className="pt-4 pb-2">
+                        <div className="pt-4 pb-2 border-t border-gray-100 flex items-center justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={handleClose}
+                            className="px-6 py-3.5 border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-colors text-sm cursor-pointer"
+                          >
+                            Cancel
+                          </button>
                           <button 
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-4 bg-[#2B2B2B] text-white rounded-xl font-bold hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex justify-center items-center gap-2"
+                            className="px-8 py-3.5 bg-[#2B2B2B] text-white rounded-xl font-bold hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2 text-sm cursor-pointer"
                           >
-                            {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}
-                            {isSubmitting ? 'Saving...' : 'Save Details'}
+                            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {isSubmitting ? 'Saving...' : 'Save Entrepreneur Details'}
                           </button>
                         </div>
                       )}
