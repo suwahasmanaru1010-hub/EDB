@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, Home, Settings, ChevronDown, ChevronRight, Search, Loader2, ArrowLeft, ListFilter, X, Plus, Check } from "lucide-react";
+import { Users, Home, Settings, ChevronDown, ChevronRight, Search, Loader2, ArrowLeft, ListFilter, X, Plus, Check, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import Sidebar from "@/components/Sidebar";
@@ -190,8 +190,15 @@ export default function EntrepreneursPage() {
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Add Entrepreneur Drawer / Modal State
+  // Add / Edit Entrepreneur Drawer / Modal State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingEntrepreneurId, setEditingEntrepreneurId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({
+    isOpen: false,
+    id: null,
+    name: ""
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
   const [step, setStep] = useState(1);
   const [dbCategories, setDbCategories] = useState<Category[]>([]);
   const [dbFormFields, setDbFormFields] = useState<FormField[]>([]);
@@ -249,10 +256,48 @@ export default function EntrepreneursPage() {
     setIsDrawerOpen(false);
     setTimeout(() => {
       setStep(1);
+      setEditingEntrepreneurId(null);
       setSelectedMainCat(null);
       setSelectedSubCat(null);
       setDynamicFormData({});
     }, 300);
+  };
+
+  const handleOpenEditModal = (ent: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingEntrepreneurId(ent.id);
+
+    const mainCatObj = dbCategories.find(c => c.name?.toLowerCase() === ent.main_category?.toLowerCase() && c.type === 'main') 
+      || (ent.main_category ? { id: 'temp', name: ent.main_category, type: 'main' as const, parent_id: null } : null);
+    
+    const subCatObj = dbCategories.find(c => c.name?.toLowerCase() === ent.sub_category?.toLowerCase() && c.type === 'sub') 
+      || (ent.sub_category ? { id: 'temp_sub', name: ent.sub_category, type: 'sub' as const, parent_id: null } : null);
+
+    setSelectedMainCat(mainCatObj);
+    setSelectedSubCat(subCatObj);
+    setDynamicFormData({ ...(ent.dynamic_data || {}) });
+    setStep(3);
+    setIsDrawerOpen(true);
+  };
+
+  const handleConfirmDelete = (id: string, name: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeleteModal({ isOpen: true, id, name: name || 'Entrepreneur' });
+  };
+
+  const executeDeleteEntrepreneur = async () => {
+    if (!deleteModal.id) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('entrepreneurs').delete().eq('id', deleteModal.id);
+      if (error) throw error;
+      setEntrepreneurs(prev => prev.filter(e => e.id !== deleteModal.id));
+      setDeleteModal({ isOpen: false, id: null, name: "" });
+    } catch (err: any) {
+      alert("Failed to delete entrepreneur: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,23 +324,46 @@ export default function EntrepreneursPage() {
       (ageEntry ? ageEntry[1] : null);
 
     try {
-      const { error } = await supabase.from('entrepreneurs').insert([{
-        name: nameValue,
-        age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
-        main_category: selectedMainCat?.name || null,
-        sub_category: selectedSubCat?.name || null,
-        status: 'Active',
-        dynamic_data: dynamicFormData
-      }]);
-      
-      if (error) throw error;
+      if (editingEntrepreneurId) {
+        // UPDATE existing entrepreneur
+        const { error } = await supabase.from('entrepreneurs').update({
+          name: nameValue,
+          age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
+          main_category: selectedMainCat?.name || null,
+          sub_category: selectedSubCat?.name || null,
+          dynamic_data: dynamicFormData
+        }).eq('id', editingEntrepreneurId);
+
+        if (error) throw error;
+
+        setEntrepreneurs(prev => prev.map(ent => ent.id === editingEntrepreneurId ? {
+          ...ent,
+          name: nameValue,
+          age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
+          main_category: selectedMainCat?.name || null,
+          sub_category: selectedSubCat?.name || null,
+          dynamic_data: dynamicFormData
+        } : ent));
+      } else {
+        // INSERT new entrepreneur
+        const { error } = await supabase.from('entrepreneurs').insert([{
+          name: nameValue,
+          age: ageValue && !isNaN(parseInt(ageValue)) ? parseInt(ageValue) : null,
+          main_category: selectedMainCat?.name || null,
+          sub_category: selectedSubCat?.name || null,
+          status: 'Active',
+          dynamic_data: dynamicFormData
+        }]);
+        
+        if (error) throw error;
+      }
       
       setShowSuccess(true);
       fetchData();
       setTimeout(() => {
         setShowSuccess(false);
         handleClose();
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
       alert("Error saving: " + err.message);
     } finally {
@@ -528,17 +596,34 @@ export default function EntrepreneursPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                        <div className="flex items-center gap-1 shrink-0 mt-0.5">
                           {e.status === 'Pending' && (
                             <button
                               type="button"
                               onClick={(ev) => handleApproveStatus(e.id, ev)}
-                              className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold transition-all shadow-xs cursor-pointer"
+                              className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold transition-all shadow-xs cursor-pointer mr-1"
                               title="Approve submission"
                             >
                               Approve
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={(ev) => handleOpenEditModal(e, ev)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                            title="Edit Entrepreneur"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(ev) => handleConfirmDelete(e.id, e.name || 'Entrepreneur', ev)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                            title="Delete Entrepreneur"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
                           <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </div>
@@ -562,6 +647,23 @@ export default function EntrepreneursPage() {
                         ) : (
                           <div className="p-4 text-xs text-gray-500 text-center">No extra details available.</div>
                         )}
+
+                        <div className="px-4 py-2.5 bg-gray-100/70 border-t border-gray-200/60 flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={(ev) => handleOpenEditModal(e, ev)}
+                            className="px-3 py-1.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(ev) => handleConfirmDelete(e.id, e.name || 'Entrepreneur', ev)}
+                            className="px-3 py-1.5 bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete Entry
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -570,6 +672,41 @@ export default function EntrepreneursPage() {
             </div>
           )}
         </main>
+
+        {/* Delete Confirmation Modal */}
+        {deleteModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 border border-gray-100">
+              <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-base font-bold text-gray-900">Delete Entrepreneur?</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Are you sure you want to delete <span className="font-bold text-gray-900">"{deleteModal.name}"</span>? This entry will be permanently removed.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={executeDeleteEntrepreneur}
+                  className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {isDeleting ? "Deleting..." : "Yes, Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile Bottom Navigation */}
         <nav className="md:hidden fixed bottom-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 px-8 py-4 flex items-center justify-around z-40 shadow-lg">
@@ -619,10 +756,12 @@ export default function EntrepreneursPage() {
               <div className="flex items-center justify-between mb-5 pb-3 border-b border-gray-100">
                 <div>
                   <h3 className="text-xl md:text-2xl font-bold text-gray-900">
-                    {step === 1 ? "Select Main Category" : step === 2 ? "Select Sub Category" : "Add Entrepreneur Details"}
+                    {editingEntrepreneurId ? "Edit Entrepreneur Details" : step === 1 ? "Select Main Category" : step === 2 ? "Select Sub Category" : "Add Entrepreneur Details"}
                   </h3>
                   {step === 3 && (
-                    <p className="text-xs text-gray-400 mt-0.5">Please fill out all required details below</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {editingEntrepreneurId ? "Modify and update the entrepreneur details below" : "Please fill out all required details below"}
+                    </p>
                   )}
                 </div>
                 <button onClick={handleClose} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-900 transition-colors cursor-pointer">
@@ -926,7 +1065,9 @@ export default function EntrepreneursPage() {
                             className="px-8 py-3.5 bg-[#2B2B2B] text-white rounded-xl font-bold hover:bg-black transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2 text-sm cursor-pointer"
                           >
                             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {isSubmitting ? 'Saving...' : 'Save Entrepreneur Details'}
+                            {isSubmitting 
+                              ? (editingEntrepreneurId ? 'Updating...' : 'Saving...') 
+                              : (editingEntrepreneurId ? 'Update Entrepreneur Details' : 'Save Entrepreneur Details')}
                           </button>
                         </div>
                       )}
