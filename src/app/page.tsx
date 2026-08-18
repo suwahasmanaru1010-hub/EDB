@@ -630,10 +630,16 @@ export default function HomeDashboard() {
                                     : [];
 
                                   const toggleOption = (opt: string) => {
-                                    const updated = currentSelected.includes(opt)
-                                      ? currentSelected.filter((item: string) => item !== opt)
-                                      : [...currentSelected, opt];
-                                    setDynamicFormData({ ...dynamicFormData, [field.label]: updated.join(', ') });
+                                    setDynamicFormData(prev => {
+                                      const currentRaw = prev[field.label];
+                                      const curList: string[] = currentRaw
+                                        ? (Array.isArray(currentRaw) ? (currentRaw as string[]) : String(currentRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                        : [];
+                                      const updated = curList.includes(opt)
+                                        ? curList.filter((item: string) => item !== opt)
+                                        : [...curList, opt];
+                                      return { ...prev, [field.label]: updated.join(', ') };
+                                    });
                                   };
 
                                   return (
@@ -643,18 +649,17 @@ export default function HomeDashboard() {
                                         return (
                                           <label
                                             key={idx}
-                                            onClick={() => toggleOption(opt)}
-                                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                                            className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
                                               isChecked
-                                                ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] font-semibold'
+                                                ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] font-semibold shadow-xs'
                                                 : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
                                             }`}
                                           >
                                             <input
                                               type="checkbox"
                                               checked={isChecked}
-                                              onChange={() => {}}
-                                              className="w-3.5 h-3.5 rounded text-black pointer-events-none"
+                                              onChange={() => toggleOption(opt)}
+                                              className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
                                             />
                                             <span className="truncate">{opt}</span>
                                           </label>

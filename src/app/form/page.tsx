@@ -276,10 +276,16 @@ function PublicFormContent() {
                               : [];
 
                             const toggleOption = (opt: string) => {
-                              const updated = currentSelected.includes(opt)
-                                ? currentSelected.filter((item: string) => item !== opt)
-                                : [...currentSelected, opt];
-                              handleDynamicChange(field.label, updated.join(', '));
+                              setFormData(prev => {
+                                const currentRaw = prev[field.label];
+                                const curList: string[] = currentRaw
+                                  ? (Array.isArray(currentRaw) ? (currentRaw as string[]) : String(currentRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                  : [];
+                                const updated = curList.includes(opt)
+                                  ? curList.filter((item: string) => item !== opt)
+                                  : [...curList, opt];
+                                return { ...prev, [field.label]: updated.join(', ') };
+                              });
                             };
 
                             return (
@@ -289,7 +295,6 @@ function PublicFormContent() {
                                   return (
                                     <label 
                                       key={idx} 
-                                      onClick={() => toggleOption(opt)}
                                       className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
                                         isChecked 
                                           ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm font-semibold' 
@@ -299,8 +304,8 @@ function PublicFormContent() {
                                       <input 
                                         type="checkbox"
                                         checked={isChecked}
-                                        onChange={() => {}}
-                                        className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 pointer-events-none"
+                                        onChange={() => toggleOption(opt)}
+                                        className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
                                       />
                                       <span className="text-xs">{opt}</span>
                                     </label>
