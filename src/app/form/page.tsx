@@ -270,8 +270,9 @@ function PublicFormContent() {
                           }
 
                           if (field.is_multiple) {
-                            const currentSelected: string[] = formData[field.label] 
-                              ? (Array.isArray(formData[field.label]) ? formData[field.label] : String(formData[field.label]).split(',').map((s: string) => s.trim()).filter(Boolean))
+                            const rawVal = formData[field.label];
+                            const currentSelected: string[] = rawVal 
+                              ? (Array.isArray(rawVal) ? (rawVal as string[]) : String(rawVal).split(',').map((s: string) => s.trim()).filter(Boolean))
                               : [];
 
                             const toggleOption = (opt: string) => {

@@ -653,8 +653,9 @@ export default function EntrepreneursPage() {
                                 }
 
                                 if (field.is_multiple) {
-                                  const currentSelected: string[] = dynamicFormData[field.label]
-                                    ? (Array.isArray(dynamicFormData[field.label]) ? dynamicFormData[field.label] : String(dynamicFormData[field.label]).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                  const rawVal = dynamicFormData[field.label];
+                                  const currentSelected: string[] = rawVal
+                                    ? (Array.isArray(rawVal) ? (rawVal as string[]) : String(rawVal).split(',').map((s: string) => s.trim()).filter(Boolean))
                                     : [];
 
                                   const toggleOption = (opt: string) => {

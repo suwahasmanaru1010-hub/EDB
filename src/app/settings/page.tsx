@@ -650,7 +650,7 @@ export default function SettingsPage() {
                     <button 
                       onClick={() => {
                         setEditingFieldId(null);
-                        setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
+                        setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'], options: [], is_multiple: false });
                         setIsCategoryPanelExpanded(false);
                         setFieldDrawerOpen(true);
                       }} 
@@ -753,7 +753,7 @@ export default function SettingsPage() {
                     <button 
                       onClick={() => {
                         setEditingFieldId(null);
-                        setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'] });
+                        setNewField({ label: '', type: 'text', required: true, selectedCategoryNames: ['all'], options: [], is_multiple: false });
                         setIsCategoryPanelExpanded(false);
                         setFieldDrawerOpen(true);
                       }}
