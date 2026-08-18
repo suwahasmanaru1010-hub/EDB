@@ -5,15 +5,51 @@ import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2, CheckCircle2, AlertTriangle, Send } from "lucide-react";
 
+type OptionItem = {
+  label: string;
+  has_input?: boolean;
+};
+
 type FormField = {
   id: string;
   label: string;
   type: string;
   required: boolean;
   category_name?: string | null;
-  options?: string[] | string | null;
+  options?: OptionItem[] | string[] | string | null;
   is_multiple?: boolean | null;
 };
+
+function parseFieldOptions(rawOptions: any): OptionItem[] {
+  if (!rawOptions) return [];
+  if (Array.isArray(rawOptions)) {
+    return rawOptions.map(item => {
+      if (typeof item === 'object' && item !== null && 'label' in item) {
+        return { label: String(item.label), has_input: Boolean(item.has_input) };
+      }
+      const str = String(item).trim();
+      if (str.endsWith(':with_input')) {
+        return { label: str.replace(':with_input', '').trim(), has_input: true };
+      }
+      return { label: str, has_input: false };
+    });
+  }
+  if (typeof rawOptions === 'string') {
+    try {
+      const parsed = JSON.parse(rawOptions);
+      if (Array.isArray(parsed)) return parseFieldOptions(parsed);
+    } catch {
+      return rawOptions.split(',').map(s => {
+        const trimmed = s.trim();
+        if (trimmed.endsWith(':with_input')) {
+          return { label: trimmed.replace(':with_input', '').trim(), has_input: true };
+        }
+        return { label: trimmed, has_input: false };
+      }).filter(o => o.label.length > 0);
+    }
+  }
+  return [];
+}
 
 function PublicFormContent() {
   const searchParams = useSearchParams();
@@ -256,77 +292,154 @@ function PublicFormContent() {
                         />
                       ) : field.type === 'select' ? (
                         (() => {
-                          let optionsList: string[] = [];
-                          if (Array.isArray(field.options)) {
-                            optionsList = field.options;
-                          } else if (typeof field.options === 'string') {
-                            try {
-                              const parsed = JSON.parse(field.options);
-                              if (Array.isArray(parsed)) optionsList = parsed;
-                              else optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
-                            } catch {
-                              optionsList = field.options.split(',').map((s: string) => s.trim()).filter(Boolean);
-                            }
-                          }
+                          const optionsList: OptionItem[] = parseFieldOptions(field.options);
+                          const rawVal = formData[field.label];
 
                           if (field.is_multiple) {
-                            const rawVal = formData[field.label];
-                            const currentSelected: string[] = rawVal 
+                            const rawList: string[] = rawVal 
                               ? (Array.isArray(rawVal) ? (rawVal as string[]) : String(rawVal).split(',').map((s: string) => s.trim()).filter(Boolean))
                               : [];
 
-                            const toggleOption = (opt: string) => {
+                            const selectedMap: Record<string, string> = {};
+                            rawList.forEach(item => {
+                              const colonIdx = item.indexOf(': ');
+                              if (colonIdx !== -1) {
+                                selectedMap[item.substring(0, colonIdx).trim()] = item.substring(colonIdx + 2).trim();
+                              } else {
+                                selectedMap[item.trim()] = '';
+                              }
+                            });
+
+                            const toggleOption = (optLabel: string) => {
                               setFormData(prev => {
-                                const currentRaw = prev[field.label];
-                                const curList: string[] = currentRaw
-                                  ? (Array.isArray(currentRaw) ? (currentRaw as string[]) : String(currentRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                const prevRaw = prev[field.label];
+                                const curList: string[] = prevRaw
+                                  ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
                                   : [];
-                                const updated = curList.includes(opt)
-                                  ? curList.filter((item: string) => item !== opt)
-                                  : [...curList, opt];
+                                
+                                const isAlreadySelected = curList.some(item => item.startsWith(optLabel + ': ') || item === optLabel);
+                                let updated: string[];
+                                if (isAlreadySelected) {
+                                  updated = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
+                                } else {
+                                  updated = [...curList, optLabel];
+                                }
                                 return { ...prev, [field.label]: updated.join(', ') };
                               });
                             };
 
+                            const updateOptionAnswer = (optLabel: string, text: string) => {
+                              setFormData(prev => {
+                                const prevRaw = prev[field.label];
+                                const curList: string[] = prevRaw
+                                  ? (Array.isArray(prevRaw) ? (prevRaw as string[]) : String(prevRaw).split(',').map((s: string) => s.trim()).filter(Boolean))
+                                  : [];
+                                
+                                const filtered = curList.filter(item => !(item.startsWith(optLabel + ': ') || item === optLabel));
+                                const newEntry = text.trim() ? `${optLabel}: ${text.trim()}` : optLabel;
+                                return { ...prev, [field.label]: [...filtered, newEntry].join(', ') };
+                              });
+                            };
+
                             return (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200">
                                 {optionsList.map((opt, idx) => {
-                                  const isChecked = currentSelected.includes(opt);
+                                  const isChecked = Object.prototype.hasOwnProperty.call(selectedMap, opt.label);
+                                  const currentDetail = selectedMap[opt.label] || '';
+
                                   return (
-                                    <label 
+                                    <div 
                                       key={idx} 
-                                      className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                                      className={`p-3 rounded-xl border transition-all ${
                                         isChecked 
-                                          ? 'bg-[#2B2B2B] text-white border-[#2B2B2B] shadow-sm font-semibold' 
-                                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                                          ? 'bg-white border-[#2B2B2B] shadow-sm' 
+                                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                       }`}
                                     >
-                                      <input 
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => toggleOption(opt)}
-                                        className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
-                                      />
-                                      <span className="text-xs">{opt}</span>
-                                    </label>
+                                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input 
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => toggleOption(opt.label)}
+                                          className="w-4 h-4 rounded text-black focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
+                                        />
+                                        <span className="text-xs font-semibold text-gray-900">{opt.label}</span>
+                                      </label>
+
+                                      {isChecked && opt.has_input && (
+                                        <div className="mt-2 pl-6 animate-in fade-in duration-150">
+                                          <input
+                                            type="text"
+                                            placeholder={`Enter details for ${opt.label}...`}
+                                            value={currentDetail}
+                                            onChange={(e) => updateOptionAnswer(opt.label, e.target.value)}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-gray-900 font-medium"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
                                   );
                                 })}
                               </div>
                             );
                           }
 
+                          // Single selection
+                          let selectedChoice = '';
+                          let textAnswer = '';
+                          if (typeof rawVal === 'string' && rawVal) {
+                            const colonIdx = rawVal.indexOf(': ');
+                            if (colonIdx !== -1) {
+                              selectedChoice = rawVal.substring(0, colonIdx).trim();
+                              textAnswer = rawVal.substring(colonIdx + 2).trim();
+                            } else {
+                              selectedChoice = rawVal.trim();
+                            }
+                          }
+
+                          const activeOptObj = optionsList.find(o => o.label === selectedChoice);
+
                           return (
-                            <select
-                              required={field.required}
-                              value={formData[field.label] || ''}
-                              onChange={(e) => handleDynamicChange(field.label, e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all font-medium text-gray-900 cursor-pointer"
-                            >
-                              <option value="">-- Select {field.label} --</option>
-                              {optionsList.map((opt, idx) => (
-                                <option key={idx} value={opt}>{opt}</option>
-                              ))}
-                            </select>
+                            <div className="space-y-2">
+                              <select
+                                required={field.required}
+                                value={selectedChoice}
+                                onChange={(e) => {
+                                  const choice = e.target.value;
+                                  const optObj = optionsList.find(o => o.label === choice);
+                                  if (optObj?.has_input && textAnswer) {
+                                    handleDynamicChange(field.label, `${choice}: ${textAnswer}`);
+                                  } else {
+                                    handleDynamicChange(field.label, choice);
+                                  }
+                                }}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all font-medium text-gray-900 cursor-pointer"
+                              >
+                                <option value="">-- Select {field.label} --</option>
+                                {optionsList.map((opt, idx) => (
+                                  <option key={idx} value={opt.label}>{opt.label}</option>
+                                ))}
+                              </select>
+
+                              {activeOptObj?.has_input && (
+                                <div className="animate-in fade-in duration-200 pl-1">
+                                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                                    {selectedChoice} - Details / Answer:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder={`Enter details for ${selectedChoice}...`}
+                                    value={textAnswer}
+                                    onChange={(e) => {
+                                      const txt = e.target.value;
+                                      handleDynamicChange(field.label, txt ? `${selectedChoice}: ${txt}` : selectedChoice);
+                                    }}
+                                    required={field.required}
+                                    className="w-full bg-white border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-medium text-gray-900 shadow-xs"
+                                  />
+                                </div>
+                              )}
+                            </div>
                           );
                         })()
                       ) : field.type === 'file' ? (

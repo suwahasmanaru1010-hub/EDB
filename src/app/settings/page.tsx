@@ -15,6 +15,11 @@ type Category = {
   parent_id: string | null;
 };
 
+type OptionItem = {
+  label: string;
+  has_input?: boolean;
+};
+
 type FormField = {
   id: string;
   label: string;
@@ -22,9 +27,40 @@ type FormField = {
   required: boolean;
   order_index: number;
   category_name?: string | null;
-  options?: string[] | string | null;
+  options?: OptionItem[] | string[] | string | null;
   is_multiple?: boolean | null;
 };
+
+export function parseFieldOptions(rawOptions: any): OptionItem[] {
+  if (!rawOptions) return [];
+  if (Array.isArray(rawOptions)) {
+    return rawOptions.map(item => {
+      if (typeof item === 'object' && item !== null && 'label' in item) {
+        return { label: String(item.label), has_input: Boolean(item.has_input) };
+      }
+      const str = String(item).trim();
+      if (str.endsWith(':with_input')) {
+        return { label: str.replace(':with_input', '').trim(), has_input: true };
+      }
+      return { label: str, has_input: false };
+    });
+  }
+  if (typeof rawOptions === 'string') {
+    try {
+      const parsed = JSON.parse(rawOptions);
+      if (Array.isArray(parsed)) return parseFieldOptions(parsed);
+    } catch {
+      return rawOptions.split(',').map(s => {
+        const trimmed = s.trim();
+        if (trimmed.endsWith(':with_input')) {
+          return { label: trimmed.replace(':with_input', '').trim(), has_input: true };
+        }
+        return { label: trimmed, has_input: false };
+      }).filter(o => o.label.length > 0);
+    }
+  }
+  return [];
+}
 
 type SystemUser = {
   id: string;
@@ -74,7 +110,7 @@ export default function SettingsPage() {
     type: string;
     required: boolean;
     selectedCategoryNames: string[];
-    options: string[];
+    options: OptionItem[];
     is_multiple: boolean;
   }>({ 
     label: '', 
@@ -86,6 +122,7 @@ export default function SettingsPage() {
   });
   
   const [optionInput, setOptionInput] = useState("");
+  const [optionHasInput, setOptionHasInput] = useState(false);
   const [activeSideTab, setActiveSideTab] = useState<'options' | 'categories'>('options');
   const [isSavingField, setIsSavingField] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -273,15 +310,25 @@ export default function SettingsPage() {
   const handleAddOption = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!optionInput.trim()) return;
-    if (newField.options.includes(optionInput.trim())) {
+    const existing = newField.options.find(o => o.label.toLowerCase() === optionInput.trim().toLowerCase());
+    if (existing) {
       setOptionInput("");
+      setOptionHasInput(false);
       return;
     }
     setNewField(prev => ({
       ...prev,
-      options: [...prev.options, optionInput.trim()]
+      options: [...prev.options, { label: optionInput.trim(), has_input: optionHasInput }]
     }));
     setOptionInput("");
+    setOptionHasInput(false);
+  };
+
+  const toggleOptionHasInput = (index: number) => {
+    setNewField(prev => ({
+      ...prev,
+      options: prev.options.map((opt, i) => i === index ? { ...opt, has_input: !opt.has_input } : opt)
+    }));
   };
 
   const handleRemoveOption = (index: number) => {
@@ -296,18 +343,7 @@ export default function SettingsPage() {
       ? field.category_name.split(',').map(s => s.trim()).filter(Boolean)
       : ['all'];
     
-    let parsedOptions: string[] = [];
-    if (Array.isArray(field.options)) {
-      parsedOptions = field.options;
-    } else if (typeof field.options === 'string') {
-      try {
-        const json = JSON.parse(field.options);
-        if (Array.isArray(json)) parsedOptions = json;
-        else parsedOptions = field.options.split(',').map(s => s.trim()).filter(Boolean);
-      } catch {
-        parsedOptions = field.options.split(',').map(s => s.trim()).filter(Boolean);
-      }
-    }
+    const parsedOptions: OptionItem[] = parseFieldOptions(field.options);
 
     setEditingFieldId(field.id);
     setNewField({
@@ -319,6 +355,7 @@ export default function SettingsPage() {
       is_multiple: Boolean(field.is_multiple)
     });
     setOptionInput("");
+    setOptionHasInput(false);
     setIsCategoryPanelExpanded(false);
     setActiveSideTab(field.type === 'select' ? 'options' : 'categories');
     setFieldDrawerOpen(true);
@@ -338,12 +375,17 @@ export default function SettingsPage() {
     const isAll = newField.selectedCategoryNames.includes('all') || newField.selectedCategoryNames.length === 0;
     const categoryString = isAll ? null : newField.selectedCategoryNames.join(', ');
 
+    // Store options as string[] with :with_input tag for DB compatibility
+    const optionsPayload = newField.type === 'select' 
+      ? newField.options.map(opt => opt.has_input ? `${opt.label}:with_input` : opt.label)
+      : null;
+
     const payload: any = { 
       label: newField.label.trim(), 
       type: newField.type, 
       required: newField.required,
       category_name: categoryString,
-      options: newField.type === 'select' ? newField.options : null,
+      options: optionsPayload,
       is_multiple: newField.type === 'select' ? newField.is_multiple : false
     };
 
@@ -663,19 +705,7 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {formFields.map((field) => {
                       const catList = field.category_name ? field.category_name.split(',').map(s => s.trim()) : [];
-                      
-                      let fieldOptionsList: string[] = [];
-                      if (Array.isArray(field.options)) {
-                        fieldOptionsList = field.options;
-                      } else if (typeof field.options === 'string') {
-                        try {
-                          const parsed = JSON.parse(field.options);
-                          if (Array.isArray(parsed)) fieldOptionsList = parsed;
-                          else fieldOptionsList = field.options.split(',').map(s => s.trim()).filter(Boolean);
-                        } catch {
-                          fieldOptionsList = field.options.split(',').map(s => s.trim()).filter(Boolean);
-                        }
-                      }
+                      const fieldOptionsList: OptionItem[] = parseFieldOptions(field.options);
                       
                       return (
                         <div key={field.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-shadow">
@@ -698,8 +728,10 @@ export default function SettingsPage() {
                               {field.type === 'select' && fieldOptionsList.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1.5">
                                   {fieldOptionsList.slice(0, 3).map((opt, idx) => (
-                                    <span key={idx} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
-                                      {opt}
+                                    <span key={idx} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                      opt.has_input ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {opt.label} {opt.has_input && '✎'}
                                     </span>
                                   ))}
                                   {fieldOptionsList.length > 3 && (
@@ -1166,14 +1198,14 @@ export default function SettingsPage() {
                       </label>
 
                       {/* Add Option Input */}
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block">
                           Add Option Choice
                         </label>
                         <div className="flex gap-2">
                           <input 
                             type="text"
-                            placeholder="Type option name & press Add"
+                            placeholder="Type option name (e.g. Yes, No, Registered, Other)"
                             value={optionInput}
                             onChange={e => setOptionInput(e.target.value)}
                             onKeyDown={e => {
@@ -1192,10 +1224,23 @@ export default function SettingsPage() {
                             <Plus className="w-4 h-4" /> Add
                           </button>
                         </div>
+
+                        {/* Option text answer tick checkbox */}
+                        <label className="flex items-center gap-2 p-2 bg-amber-50/70 border border-amber-200/60 rounded-xl cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            checked={optionHasInput}
+                            onChange={(e) => setOptionHasInput(e.target.checked)}
+                            className="w-4 h-4 rounded text-[#2B2B2B] focus:ring-black border-gray-300 cursor-pointer accent-[#2B2B2B]"
+                          />
+                          <span className="text-xs font-medium text-amber-900">
+                            Require text answer / details for this option (e.g. "Yes" → enter number)
+                          </span>
+                        </label>
                       </div>
 
                       {/* Options List */}
-                      <div className="space-y-1.5 max-h-[220px] overflow-y-auto no-scrollbar pt-1">
+                      <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar pt-1">
                         {newField.options.length === 0 ? (
                           <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                             <p className="text-xs text-gray-500 font-medium">No options added yet.</p>
@@ -1204,20 +1249,40 @@ export default function SettingsPage() {
                         ) : (
                           newField.options.map((opt, idx) => (
                             <div key={idx} className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-xl shadow-xs hover:border-gray-300 transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center justify-center">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center justify-center shrink-0">
                                   {idx + 1}
                                 </span>
-                                <span className="text-xs font-semibold text-gray-900">{opt}</span>
+                                <span className="text-xs font-semibold text-gray-900 truncate">{opt.label}</span>
+                                {opt.has_input && (
+                                  <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded shrink-0">
+                                    + Text Input
+                                  </span>
+                                )}
                               </div>
-                              <button 
-                                type="button"
-                                onClick={() => handleRemoveOption(idx)}
-                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                title="Remove Option"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleOptionHasInput(idx)}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border cursor-pointer ${
+                                    opt.has_input
+                                      ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200'
+                                      : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                                  }`}
+                                  title="Toggle text answer requirement"
+                                >
+                                  {opt.has_input ? '✓ Has Input' : '+ Add Input'}
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleRemoveOption(idx)}
+                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Remove Option"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
