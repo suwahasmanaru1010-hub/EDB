@@ -562,7 +562,7 @@ export default function EntrepreneursPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
               {filteredEntrepreneurs.map((e) => {
                 const fields = e.dynamic_data ? Object.entries(e.dynamic_data as Record<string,string>) : [];
                 const initials = (e.name || '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -571,7 +571,7 @@ export default function EntrepreneursPage() {
                 return (
                   <div 
                     key={e.id} 
-                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between"
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-fit"
                     onClick={() => setExpandedCardId(isExpanded ? null : e.id)}
                   >
                     <div className="p-5 flex items-start gap-3.5">

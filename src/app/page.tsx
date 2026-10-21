@@ -426,7 +426,7 @@ export default function HomeDashboard() {
                 <p className="text-sm text-gray-400">No recent entrepreneurs found.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
                 {recentEntrepreneurs.map((e) => {
                   const fields = e.dynamic_data ? Object.entries(e.dynamic_data as Record<string,string>) : [];
                   const initials = (e.name || '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -435,7 +435,7 @@ export default function HomeDashboard() {
                   return (
                     <div 
                       key={e.id} 
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col"
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-fit"
                       onClick={() => setExpandedCardId(isExpanded ? null : e.id)}
                     >
                       <div className="p-4 flex items-start gap-3">
